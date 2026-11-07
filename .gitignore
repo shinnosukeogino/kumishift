@@ -11,11 +11,10 @@ venv/
 .ruff_cache/
 .DS_Store
 
-# 作成したシフト表（サンプル以外）
-*.csv
-*.json
-!examples/*.json
-*.html
+# 作成したシフト表（リポジトリ直下に書き出したもの）
+/*.csv
+/*.json
+/*.html
 
 # web
 web/node_modules/
