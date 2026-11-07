@@ -13,6 +13,18 @@ if not exist "web\node_modules" (
   exit /b 1
 )
 
+echo 必要なものを確認しています（足りなければ自動で入れます）...
+call ".venv\Scripts\python.exe" -m pip install -q -e ".[api]"
+cd web
+call npm install --no-audit --no-fund
+if errorlevel 1 (
+  cd ..
+  echo [エラー] 画面のパッケージを入れられませんでした。上のメッセージを Claude に送ってください。
+  pause
+  exit /b 1
+)
+cd ..
+
 echo kumishift を起動しています...
 echo  - API:  http://127.0.0.1:8000
 echo  - 画面: http://localhost:3000
