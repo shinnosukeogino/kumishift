@@ -340,3 +340,16 @@ def test_fixed_conflict_is_reported():
     res = TestClient(app).post("/api/solve", json=data)
     assert res.status_code == 422
     assert "手で直した勤務" in res.json()["detail"]
+
+
+def test_fixed_shift_with_15_minute_times():
+    data = hourly_base(requests=[
+        {"name": "A", "date": "2027-01-05", "type": "固定", "from": "10:15", "to": "14:45"},
+        {"name": "B", "date": "2027-01-05", "type": "NG", "from": "17:30", "to": "20:00"},
+    ])
+    p = parse_problem(data)
+    r = solve(p)
+    assert r.ok
+    c = r.assignments[("A", dt.date(2027, 1, 5))]
+    assert c == "10:15-14:45"
+    assert p.shift_by_code(c).minutes == 270

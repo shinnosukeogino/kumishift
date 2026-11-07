@@ -20,7 +20,6 @@ export function TimeNgDialog({
   onClose: () => void;
 }) {
   const setRequest = useAppStore((s) => s.setRequest);
-  const step = useAppStore((s) => s.businessHours.stepMinutes);
   const form = useForm<ShiftRequest>({
     resolver: zodResolver(shiftRequestSchema),
     defaultValues: { staffId: "", date: "", type: "ngTime", from: "", to: "" },
@@ -64,7 +63,7 @@ export function TimeNgDialog({
                   <FormItem className="flex-1">
                     <FormLabel>から</FormLabel>
                     <FormControl>
-                      <TimeSelect step={step} className="w-full" value={field.value} onChange={field.onChange} />
+                      <TimeSelect step={15} className="w-full" value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -78,7 +77,7 @@ export function TimeNgDialog({
                   <FormItem className="flex-1">
                     <FormLabel>まで</FormLabel>
                     <FormControl>
-                      <TimeSelect step={step} className="w-full" value={field.value} onChange={field.onChange} />
+                      <TimeSelect step={15} className="w-full" value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

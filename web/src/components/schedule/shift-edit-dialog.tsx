@@ -18,6 +18,9 @@ import type { ViewData } from "@/lib/types";
 
 export type EditTarget = { name: string; date: string } | null;
 
+/** 手で直すときは、時間の区切りに関係なく15分単位で選べる */
+const EDIT_STEP = 15;
+
 export function ShiftEditDialog({ target, data, onClose }: { target: EditTarget; data: ViewData; onClose: () => void }) {
   const staff = useAppStore((s) => s.staff);
   const fixes = useAppStore((s) => s.fixes);
@@ -67,6 +70,11 @@ export function ShiftEditDialog({ target, data, onClose }: { target: EditTarget;
       }
       for (const [bf, bt] of day.breaks ?? []) {
         if (s < bt && bf < e) notes.push(`中休み（${hm(bf)}〜${hm(bt)}）にかかっています`);
+      }
+      if (s % step || e % step) {
+        notes.push(
+          `${step}分の区切りの途中にかかる時間帯は、人数に数えません（例: 10:15から入ると、10時台の人数には入りません）`,
+        );
       }
       const br = breakFor(e - s, data.breakRules);
       notes.push(`勤務 ${(e - s) / 60}時間${br ? `（休憩${br}分・実働${(e - s - br) / 60}時間）` : ""}`);
@@ -133,7 +141,7 @@ export function ShiftEditDialog({ target, data, onClose }: { target: EditTarget;
                     <FormItem className="flex-1">
                       <FormLabel>から</FormLabel>
                       <FormControl>
-                        <TimeSelect step={step} className="w-full" value={field.value} onChange={field.onChange} />
+                        <TimeSelect step={EDIT_STEP} className="w-full" value={field.value} onChange={field.onChange} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -147,7 +155,7 @@ export function ShiftEditDialog({ target, data, onClose }: { target: EditTarget;
                     <FormItem className="flex-1">
                       <FormLabel>まで</FormLabel>
                       <FormControl>
-                        <TimeSelect step={step} className="w-full" value={field.value} onChange={field.onChange} />
+                        <TimeSelect step={EDIT_STEP} className="w-full" value={field.value} onChange={field.onChange} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
