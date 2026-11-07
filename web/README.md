@@ -15,7 +15,7 @@ npm run dev        # http://localhost:3000
 | 場所 | 内容 |
 | --- | --- |
 | `src/app/` | ページ（`/` シフト表、`/requests` シフト入力、`/settings` 設定） |
-| `src/components/ui/` | shadcn/ui の部品 |
+| `src/components/ui/` | shadcn/ui の公式部品（`npx shadcn@latest add <名前>` で追加・更新） |
 | `src/components/settings/` など | 画面ごとの部品（フォームは React Hook Form + Zod） |
 | `src/lib/schema.ts` | 入力データの Zod スキーマ（バリデーションとエラーメッセージ） |
 | `src/lib/store.ts` | データの保存（ブラウザの localStorage） |

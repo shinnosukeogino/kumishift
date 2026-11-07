@@ -91,9 +91,13 @@ export function RequestGrid() {
           <MonthSwitcher />
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-muted-foreground text-sm">入力するもの</span>
-            <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as Mode)} aria-label="入力するもの">
+            <ToggleGroup type="single" variant="outline" value={mode} onValueChange={(v) => v && setMode(v as Mode)} aria-label="入力するもの">
               {MODES.map(({ value, label, icon: Icon }) => (
-                <ToggleGroupItem key={value} value={value} className="gap-1.5 px-3">
+                <ToggleGroupItem
+                  key={value}
+                  value={value}
+                  className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground gap-1.5 px-3"
+                >
                   <Icon className="size-4" />
                   <span className="hidden md:inline">{label}</span>
                 </ToggleGroupItem>

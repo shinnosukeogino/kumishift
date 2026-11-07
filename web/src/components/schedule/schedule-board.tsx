@@ -113,7 +113,7 @@ function Board() {
       </Card>
 
       {error && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="border-destructive/20 bg-warn-bg">
           <AlertTriangle />
           <AlertTitle>シフトを作れませんでした</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
@@ -148,7 +148,7 @@ function Board() {
       ) : (
         <>
           {shortages.length || warnings.length ? (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="border-destructive/20 bg-warn-bg">
               <AlertTriangle />
               <AlertTitle>
                 確認が必要なことがあります（人数不足 {shortages.length}件・守れなかった希望 {warnings.length}件）
@@ -170,7 +170,7 @@ function Board() {
               </AlertDescription>
             </Alert>
           ) : (
-            <Alert variant="success">
+            <Alert className="border-ok/20 bg-ok-bg text-ok">
               <CheckCircle2 />
               <AlertTitle>すべての時間帯が埋まり、希望もすべて守れました</AlertTitle>
             </Alert>
@@ -185,7 +185,7 @@ function Board() {
                     <TabsTrigger value="day">日別</TabsTrigger>
                     <TabsTrigger value="staff">スタッフ</TabsTrigger>
                   </TabsList>
-                  <Badge variant={data.status === "最適" ? "success" : "secondary"}>{data.status === "最適" ? "最適な組み合わせ" : "時間内の最良案"}</Badge>
+                  <Badge variant="secondary" className={data.status === "最適" ? "bg-ok-bg text-ok" : undefined}>{data.status === "最適" ? "最適な組み合わせ" : "時間内の最良案"}</Badge>
                 </div>
                 <TabsContent value="month">
                   <MonthView

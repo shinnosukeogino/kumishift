@@ -132,12 +132,18 @@ export function StaffDialog({
                   <FormControl>
                     <ToggleGroup
                       type="multiple"
+                      variant="outline"
                       value={field.value.map(String)}
                       onValueChange={(v) => field.onChange(v.map(Number).sort())}
                       aria-label="出勤できる曜日"
                     >
                       {WEEKDAYS.map((w, i) => (
-                        <ToggleGroupItem key={w} value={String(i)} aria-label={`${w}曜日`}>
+                        <ToggleGroupItem
+                          key={w}
+                          value={String(i)}
+                          aria-label={`${w}曜日`}
+                          className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground w-10"
+                        >
                           {w}
                         </ToggleGroupItem>
                       ))}
