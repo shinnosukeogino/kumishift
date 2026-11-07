@@ -84,7 +84,7 @@ npm run dev                # http://localhost:3000
 Python 3.10 以上が必要です。
 
 ```bash
-git clone https://github.com/<your-account>/kumishift.git
+git clone https://github.com/shinnosukeogino/kumishift.git
 cd kumishift
 pip install -e .
 ```
