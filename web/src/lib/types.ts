@@ -40,5 +40,7 @@ export type SolveResult = {
   configKey: string;
   /** 作成したときの手で直した内容（変わったら「作り直すと反映」を出す） */
   fixesKey?: string;
+  /** 作成したときの「名前 → スタッフID」。名前を変えても同じ人として表示するため */
+  staffIds?: Record<string, string>;
   data: ViewData;
 };

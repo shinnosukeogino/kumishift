@@ -1,10 +1,11 @@
 "use client";
 
-import { Clock, ListChecks, Sun, Users, CalendarX } from "lucide-react";
+import { CalendarX, Clock, DatabaseBackup, ListChecks, Sun, Users } from "lucide-react";
 
 import { Hydrated } from "@/components/app/hydrated";
 import { PageHeader } from "@/components/app/page-header";
 import { ProfileForm, WorkRulesForm } from "@/components/settings/basic-form";
+import { BackupPanel } from "@/components/settings/backup-panel";
 import { BusinessHoursForm } from "@/components/settings/business-hours-form";
 import { DemandForm } from "@/components/settings/demand-form";
 import { SpecialDaysForm } from "@/components/settings/special-days-form";
@@ -23,11 +24,13 @@ export default function SettingsPage() {
             <TabsTrigger value="demand"><ListChecks />必要人数</TabsTrigger>
             <TabsTrigger value="days"><CalendarX />祝日・休業日</TabsTrigger>
             <TabsTrigger value="rules"><Sun />基本・ルール</TabsTrigger>
+            <TabsTrigger value="backup"><DatabaseBackup />バックアップ</TabsTrigger>
           </TabsList>
           <TabsContent value="staff"><StaffList /></TabsContent>
           <TabsContent value="hours"><BusinessHoursForm /></TabsContent>
           <TabsContent value="demand"><DemandForm /></TabsContent>
           <TabsContent value="days"><SpecialDaysForm /></TabsContent>
+          <TabsContent value="backup"><BackupPanel /></TabsContent>
           <TabsContent value="rules" className="space-y-6">
             <ProfileForm />
             <WorkRulesForm />

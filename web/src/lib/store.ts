@@ -89,7 +89,28 @@ export const DEFAULT_STAFF: Staff[] = [
 
 // ---------------------------------------------------------------- ストア
 
-type State = {
+/** 保存データの版。項目を足したら上げて、migrateState に移行処理を書く */
+export const STORE_VERSION = 2;
+
+/** 古い版で保存したデータ（またはバックアップ）に、新しい項目を足す */
+export function migrateState(persisted: unknown, version: number): Partial<State> {
+  const s = { ...((persisted ?? {}) as Partial<State>) };
+  if (version < 2) {
+    if (s.businessHours) {
+      s.businessHours = {
+        ...s.businessHours,
+        days: s.businessHours.days.map((d) => ({ ...d, breakFrom: d.breakFrom ?? "", breakTo: d.breakTo ?? "" })),
+      };
+    }
+    if (s.workRules && !s.workRules.breakRules) {
+      s.workRules = { ...s.workRules, breakRules: DEFAULT_WORK_RULES.breakRules };
+    }
+    s.fixes = s.fixes ?? [];
+  }
+  return s;
+}
+
+export type State = {
   profile: Profile;
   businessHours: BusinessHours;
   workRules: WorkRules;
@@ -100,6 +121,7 @@ type State = {
   fixes: ShiftFix[]; // 作成したシフトを手で直した内容
   month: string;
   results: Record<string, SolveResult>; // 月ごとの作成結果
+  lastBackupAt: string | null; // 最後にバックアップを書き出した日時
 
   setProfile: (v: Profile) => void;
   setBusinessHours: (v: BusinessHours) => void;
@@ -118,6 +140,8 @@ type State = {
   setMonth: (month: string) => void;
   setResult: (r: SolveResult) => void;
   resetAll: () => void;
+  markBackedUp: () => void;
+  importAll: (v: Partial<State>) => void;
 };
 
 const initial = () => ({
@@ -131,6 +155,7 @@ const initial = () => ({
   fixes: [] as ShiftFix[],
   month: nextMonth(),
   results: {} as Record<string, SolveResult>,
+  lastBackupAt: null as string | null,
 });
 
 export const useAppStore = create<State>()(
@@ -180,27 +205,14 @@ export const useAppStore = create<State>()(
       setMonth: (month) => set({ month }),
       setResult: (r) => set((s) => ({ results: { ...s.results, [r.month]: r } })),
       resetAll: () => set(initial()),
+      markBackedUp: () => set({ lastBackupAt: new Date().toISOString() }),
+      importAll: (v) => set({ ...initial(), ...v }),
     }),
     {
       name: "kumishift",
-      version: 2,
+      version: STORE_VERSION,
       // 古い版で保存したデータに、新しい項目（中休み・休憩・手で直した勤務）を足す
-      migrate: (persisted, version) => {
-        const s = (persisted ?? {}) as Partial<State>;
-        if (version < 2) {
-          if (s.businessHours) {
-            s.businessHours = {
-              ...s.businessHours,
-              days: s.businessHours.days.map((d) => ({ ...d, breakFrom: d.breakFrom ?? "", breakTo: d.breakTo ?? "" })),
-            };
-          }
-          if (s.workRules && !s.workRules.breakRules) {
-            s.workRules = { ...s.workRules, breakRules: DEFAULT_WORK_RULES.breakRules };
-          }
-          s.fixes = s.fixes ?? [];
-        }
-        return s as State;
-      },
+      migrate: (persisted, version) => migrateState(persisted, version) as State,
     },
   ),
 );

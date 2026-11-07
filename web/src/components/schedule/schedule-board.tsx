@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError, solveShift } from "@/lib/api";
 import { applyFixes } from "@/lib/apply-fixes";
+import { withCurrentStaff } from "@/lib/remap-staff";
 import { monthLabel } from "@/lib/dates";
 import { useAppStore } from "@/lib/store";
 import { toEngineConfig } from "@/lib/to-config";
@@ -65,7 +66,7 @@ function Board() {
   const monthFixes = React.useMemo(() => state.fixes.filter((f) => f.date.startsWith(month)), [state.fixes, month]);
   const fixesKey = JSON.stringify([...monthFixes].sort((a, b) => (a.staffId + a.date).localeCompare(b.staffId + b.date)));
   const view = React.useMemo(
-    () => (result ? applyFixes(result.data, monthFixes, state.staff) : null),
+    () => (result ? applyFixes(withCurrentStaff(result, state.staff), monthFixes, state.staff) : null),
     [result, monthFixes, state.staff],
   );
   const fixesChanged = result && (result.fixesKey ?? "[]") !== fixesKey;
@@ -75,7 +76,8 @@ function Board() {
     setError(null);
     try {
       const data = await solveShift(toEngineConfig({ ...configInput(), fixes: monthFixes }));
-      setResult({ month, createdAt: new Date().toISOString(), configKey, fixesKey, data });
+      const staffIds = Object.fromEntries(state.staff.map((s) => [s.name, s.id]));
+      setResult({ month, createdAt: new Date().toISOString(), configKey, fixesKey, staffIds, data });
       setDayIndex(Math.max(0, data.days.findIndex((d) => !d.closed)));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "シフトを作れませんでした。");
