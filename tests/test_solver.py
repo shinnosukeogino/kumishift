@@ -157,3 +157,98 @@ def test_json_output_shape():
     d = to_dict(p, solve(p))
     assert d["status"] in ("最適", "実行可能")
     assert {"name", "date", "shift"} <= set(d["assignments"][0])
+
+
+# ---------------------------------------------------------------- 時間帯モード
+
+
+def hourly_base(**overrides):
+    data = {
+        "period": {"start": "2027-01-04", "end": "2027-01-10"},
+        "hourly": {
+            "min_hours": 4,
+            "max_hours": 8,
+            "business_hours": {
+                "default": {"open": "10:00", "close": "20:00"},
+                "weekdays": {"水": "定休日", "土": {"open": "09:00", "close": "21:00"}},
+            },
+            "demand": {"default": [{"from": "11:00", "to": "14:00", "count": 2}]},
+        },
+        "staff": [{"name": n} for n in ["A", "B", "C", "D", "E"]],
+        "rules": {"time_limit_seconds": 2},
+    }
+    data.update(overrides)
+    return data
+
+
+def test_hourly_business_hours_and_closed_day():
+    p = parse_problem(hourly_base())
+    assert p.business_hours[dt.date(2027, 1, 6)] is None            # 水曜 定休日
+    assert p.business_hours[dt.date(2027, 1, 9)] == (9 * 60, 21 * 60)  # 土曜
+    r = solve(p)
+    assert r.ok and r.shortages == []
+    assert not [k for k in r.assignments if k[1] == dt.date(2027, 1, 6)]
+    for (n, d), c in r.assignments.items():
+        sh = p.shift_by_code(c)
+        o, cl = p.business_hours[d]
+        assert o <= sh.start_min and sh.end_min <= cl
+        assert 4 * 60 <= sh.minutes <= 8 * 60
+
+
+def test_hourly_demand_is_covered():
+    p = parse_problem(hourly_base())
+    r = solve(p)
+    for (d, t), need in p.slot_demand.items():
+        n = sum(
+            1 for (_, dd), c in r.assignments.items()
+            if dd == d and p.shift_by_code(c).start_min <= t < p.shift_by_code(c).end_min
+        )
+        assert n >= need
+
+
+def test_hourly_staff_time_limits():
+    data = hourly_base()
+    data["staff"][0].update({"available_from": "15:00"})
+    data["staff"][1].update({"max_hours_per_day": 4})
+    p = parse_problem(data)
+    r = solve(p)
+    for (n, d), c in r.assignments.items():
+        sh = p.shift_by_code(c)
+        if n == "A":
+            assert sh.start_min >= 15 * 60
+        if n == "B":
+            assert sh.minutes <= 4 * 60
+
+
+def test_hourly_ng_time_range():
+    data = hourly_base(requests=[{"name": "A", "date": "2027-01-05", "type": "NG", "from": "10:00", "to": "15:00"}])
+    p = parse_problem(data)
+    r = solve(p)
+    c = r.assignments.get(("A", dt.date(2027, 1, 5)))
+    if c:
+        assert p.shift_by_code(c).start_min >= 15 * 60
+
+
+def test_hourly_example_file_solves():
+    p = load_problem(ROOT / "examples" / "hourly.yaml")
+    r = solve(p)
+    assert r.ok and r.shortages == []
+
+
+def test_hourly_bad_business_hours():
+    data = hourly_base()
+    data["hourly"]["business_hours"]["default"] = {"open": "10:30", "close": "20:00"}
+    with pytest.raises(ConfigError, match="区切り"):
+        parse_problem(data)
+
+
+@pytest.mark.parametrize("maker", [base, hourly_base])
+def test_html_output(tmp_path, maker):
+    from kumishift.html import write_html
+
+    p = parse_problem(maker())
+    out = tmp_path / "s.html"
+    write_html(p, solve(p), out, title="テスト<>")
+    html = out.read_text(encoding="utf-8")
+    assert "<title>テスト&lt;&gt;</title>" in html
+    assert '"assign"' in html

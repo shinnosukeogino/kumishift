@@ -15,3 +15,4 @@ venv/
 *.csv
 *.json
 !examples/*.json
+*.html

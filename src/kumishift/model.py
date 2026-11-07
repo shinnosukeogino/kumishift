@@ -31,6 +31,15 @@ class ShiftType:
     end: str
 
     @property
+    def start_min(self) -> int:
+        return _parse_hhmm(self.start)
+
+    @property
+    def end_min(self) -> int:
+        e = _parse_hhmm(self.end)
+        return e + 24 * 60 if e <= self.start_min else e
+
+    @property
     def minutes(self) -> int:
         """勤務時間（分）。終了が開始より早ければ日またぎとして扱う。"""
         s = _parse_hhmm(self.start)
@@ -50,6 +59,10 @@ class Staff:
     max_consecutive: int | None = None
     max_hours_per_week: float | None = None
     fair: bool = True
+    available_from: int | None = None  # 分（時間帯モード）
+    available_to: int | None = None
+    min_hours_per_day: float | None = None
+    max_hours_per_day: float | None = None
 
 
 @dataclass
@@ -58,6 +71,8 @@ class Request:
     date: dt.date
     kind: str  # "off" | "want" | "ng"
     shift: str | None = None
+    time_from: int | None = None  # NG の時間指定（時間帯モード）
+    time_to: int | None = None
 
 
 @dataclass
@@ -77,6 +92,7 @@ class Weights:
     preference: int = 5
     fairness: int = 20
     weekend_fairness: int = 10
+    hours_fairness: int = 5  # 時間帯モード: 合計勤務時間の偏り
 
 
 @dataclass
@@ -89,6 +105,19 @@ class Problem:
     holidays: set[dt.date]
     rules: Rules
     weights: Weights
+    # ---- 時間帯モード（hourly を書いたときだけ使う）
+    hourly: bool = False
+    slot_minutes: int = 60
+    business_hours: dict[dt.date, tuple[int, int] | None] = field(default_factory=dict)
+    slot_demand: dict[tuple[dt.date, int], int] = field(default_factory=dict)  # (日付, 開始分) -> 人数
+    day_codes: dict[dt.date, set[str]] = field(default_factory=dict)  # その日に使える勤務
+
+    def slots_of(self, d: dt.date) -> list[int]:
+        """その日の時間枠の開始時刻（分）。定休日は空。"""
+        bh = self.business_hours.get(d)
+        if not bh:
+            return []
+        return list(range(bh[0], bh[1], self.slot_minutes))
 
     def shift_by_code(self, code: str) -> ShiftType:
         for s in self.shifts:
@@ -129,23 +158,14 @@ def parse_problem(data: dict[str, Any]) -> Problem:
         raise ConfigError("period.end が period.start より前になっています。")
     dates = [start + dt.timedelta(days=i) for i in range((end - start).days + 1)]
 
-    shifts = []
-    for i, s in enumerate(_require(data, "shifts", "勤務の種類（shifts）")):
-        code = str(_require(s, "code", f"shifts[{i}].code"))
-        shifts.append(
-            ShiftType(
-                code=code,
-                name=str(s.get("name", code)),
-                start=_norm_time(s.get("start", "09:00")),
-                end=_norm_time(s.get("end", "18:00")),
-            )
-        )
+    holidays = {_to_date(h) for h in data.get("holidays", []) or []}
+
+    hourly = data.get("hourly")
+    if hourly:
+        shifts, hourly_info = _parse_hourly(hourly, dates, holidays)
+    else:
+        shifts, hourly_info = _parse_shifts(data), None
     codes = [s.code for s in shifts]
-    if len(set(codes)) != len(codes):
-        raise ConfigError("shifts の code が重複しています。")
-    for s in shifts:
-        _parse_hhmm(s.start)
-        _parse_hhmm(s.end)
 
     rules_data = data.get("rules", {}) or {}
     rules = Rules(
@@ -169,10 +189,30 @@ def parse_problem(data: dict[str, Any]) -> Problem:
         weekdays = (
             {_to_weekday(w) for w in p["weekdays"]} if p.get("weekdays") else set(range(7))
         )
+        av_from = _parse_hhmm(_norm_time(p["available_from"])) if p.get("available_from") else None
+        av_to = _parse_hhmm(_norm_time(p["available_to"])) if p.get("available_to") else None
+        min_h = p.get("min_hours_per_day")
+        max_h = p.get("max_hours_per_day")
+        if hourly_info:
+            # 時間帯モード: 入れる時間・1日の勤務時間に合う勤務だけ残す
+            by_code = {sh.code: sh for sh in shifts}
+            allowed = [
+                c for c in allowed
+                if (av_from is None or by_code[c].start_min >= av_from)
+                and (av_to is None or by_code[c].end_min <= av_to)
+                and (min_h is None or by_code[c].minutes >= float(min_h) * 60)
+                and (max_h is None or by_code[c].minutes <= float(max_h) * 60)
+            ]
+            if not allowed:
+                raise ConfigError(f"{name} が入れる時間の組み合わせがありません。入れる時間と1日の勤務時間を確認してください。")
         staff_list.append(
             Staff(
                 name=name,
                 shifts=allowed,
+                available_from=av_from,
+                available_to=av_to,
+                min_hours_per_day=min_h,
+                max_hours_per_day=max_h,
                 weekdays=weekdays,
                 min_days=p.get("min_days"),
                 max_days=p.get("max_days"),
@@ -185,9 +225,10 @@ def parse_problem(data: dict[str, Any]) -> Problem:
     if len(set(names)) != len(names):
         raise ConfigError("staff の name が重複しています。同じ名前は使えません。")
 
-    holidays = {_to_date(h) for h in data.get("holidays", []) or []}
-
-    demand = _parse_demand(data.get("demand", {}) or {}, dates, codes, holidays)
+    if hourly_info:
+        demand = {(d, c): 0 for d in dates for c in codes}
+    else:
+        demand = _parse_demand(data.get("demand", {}) or {}, dates, codes, holidays)
 
     requests = []
     for i, r in enumerate(data.get("requests", []) or []):
@@ -210,9 +251,15 @@ def parse_problem(data: dict[str, Any]) -> Problem:
         if shift is not None:
             shift = str(shift)
             _check_code(shift, codes, f"requests[{i}].shift")
+        t_from = _parse_hhmm(_norm_time(r["from"])) if r.get("from") is not None else None
+        t_to = _parse_hhmm(_norm_time(r["to"])) if r.get("to") is not None else None
+        if (t_from is None) != (t_to is None):
+            raise ConfigError(f"requests[{i}]: from と to は両方指定してください。")
         if kind in ("want",) and shift is None:
             raise ConfigError(f"requests[{i}]: 「希望」には shift を指定してください。")
-        requests.append(Request(name=name, date=d, kind=kind, shift=shift))
+        requests.append(
+            Request(name=name, date=d, kind=kind, shift=shift, time_from=t_from, time_to=t_to)
+        )
 
     w = data.get("weights", {}) or {}
     weights = Weights(**{k: int(v) for k, v in w.items() if k in Weights.__dataclass_fields__})
@@ -226,7 +273,155 @@ def parse_problem(data: dict[str, Any]) -> Problem:
         holidays=holidays,
         rules=rules,
         weights=weights,
+        **(hourly_info or {}),
     )
+
+
+def _parse_shifts(data: dict[str, Any]) -> list[ShiftType]:
+    shifts = []
+    for i, s in enumerate(_require(data, "shifts", "勤務の種類（shifts）。時間単位で組むときは hourly")):
+        code = str(_require(s, "code", f"shifts[{i}].code"))
+        shifts.append(
+            ShiftType(
+                code=code,
+                name=str(s.get("name", code)),
+                start=_norm_time(s.get("start", "09:00")),
+                end=_norm_time(s.get("end", "18:00")),
+            )
+        )
+    codes = [s.code for s in shifts]
+    if len(set(codes)) != len(codes):
+        raise ConfigError("shifts の code が重複しています。")
+    for s in shifts:
+        _parse_hhmm(s.start)
+        _parse_hhmm(s.end)
+    return shifts
+
+
+CLOSED = {"定休日", "休業", "休み", "closed"}
+
+
+def _parse_hourly(
+    h: dict[str, Any], dates: list[dt.date], holidays: set[dt.date]
+) -> tuple[list[ShiftType], dict[str, Any]]:
+    """時間帯モード: 営業時間と時間ごとの必要人数から、勤務パターンを自動で作る。"""
+    step = int(h.get("step_minutes", 60))
+    if step <= 0 or (24 * 60) % step:
+        raise ConfigError("hourly.step_minutes は 15, 30, 60 などにしてください。")
+    min_len = int(float(h.get("min_hours", 3)) * 60)
+    max_len = int(float(h.get("max_hours", 8)) * 60)
+    if min_len > max_len:
+        raise ConfigError("hourly.min_hours が max_hours より大きくなっています。")
+    start_step = int(h.get("start_step_minutes", step))
+
+    # ---- 営業時間: default → 曜日 → 祝日 → 日付指定
+    bh_raw = _require(h, "business_hours", "営業時間（hourly.business_hours）")
+    if "open" in bh_raw:  # business_hours: {open, close} だけの省略形
+        bh_raw = {"default": bh_raw}
+    wd_raw = bh_raw.get("weekdays", {}) or {}
+    by_wd = {_to_weekday(k): v for k, v in wd_raw.items() if str(k) not in HOLIDAY_KEYS}
+    by_hol = next((v for k, v in wd_raw.items() if str(k) in HOLIDAY_KEYS), bh_raw.get("holiday"))
+    by_date = {_to_date(k): v for k, v in (bh_raw.get("dates", {}) or {}).items()}
+
+    def hours(v: Any, where: str) -> tuple[int, int] | None:
+        if v is False or (isinstance(v, str) and v in CLOSED):
+            return None
+        o = _parse_hhmm(_norm_time(_require(v, "open", f"{where}.open")))
+        c = _parse_hhmm(_norm_time(_require(v, "close", f"{where}.close")))
+        if c <= o:
+            c += 24 * 60  # 深夜営業（例: 18:00〜02:00）
+        if (o % step) or (c % step):
+            raise ConfigError(f"{where} の営業時間が step_minutes（{step}分）の区切りに合っていません。")
+        return (o, c)
+
+    business: dict[dt.date, tuple[int, int] | None] = {}
+    default_bh = bh_raw.get("default")
+    for d in dates:
+        v, where = default_bh, "business_hours.default"
+        if d.weekday() in by_wd:
+            v, where = by_wd[d.weekday()], f"business_hours.weekdays.{WEEKDAY_LABELS[d.weekday()]}"
+        if d in holidays and by_hol is not None:
+            v, where = by_hol, "business_hours.weekdays.祝"
+        if d in by_date:
+            v, where = by_date[d], f"business_hours.dates.{d}"
+        if v is None:
+            raise ConfigError("business_hours.default（ふだんの営業時間）を設定してください。")
+        business[d] = hours(v, where)
+
+    # ---- 勤務パターン（開始時刻 × 長さ）を作る
+    spans = {bh for bh in business.values() if bh}
+    if not spans:
+        raise ConfigError("期間中に営業日がありません。")
+    lo = min(o for o, _ in spans)
+    hi = max(c for _, c in spans)
+    shifts: list[ShiftType] = []
+    for start in range(lo, hi, start_step):
+        for length in range(min_len, max_len + 1, step):
+            end = start + length
+            if end > hi:
+                break
+            code = f"{_fmt(start)}-{_fmt(end)}"
+            shifts.append(ShiftType(code=code, name=code, start=_hhmm(start), end=_hhmm(end)))
+    if not shifts:
+        raise ConfigError("営業時間が min_hours より短いため、勤務パターンが作れません。")
+
+    day_codes = {
+        d: {s.code for s in shifts if bh and s.start_min >= bh[0] and s.end_min <= bh[1]}
+        for d, bh in business.items()
+    }
+
+    # ---- 時間ごとの必要人数: default → 曜日 → 祝日 → 日付指定（指定した時間だけ上書き）
+    dm = h.get("demand", {}) or {}
+    if isinstance(dm, list):
+        dm = {"default": dm}
+    dwd = dm.get("weekdays", {}) or {}
+    d_by_wd = {_to_weekday(k): v for k, v in dwd.items() if str(k) not in HOLIDAY_KEYS}
+    d_by_hol = next((v for k, v in dwd.items() if str(k) in HOLIDAY_KEYS), dm.get("holiday"))
+    d_by_date = {_to_date(k): v for k, v in (dm.get("dates", {}) or {}).items()}
+    default_count = int(h.get("default_count", 1))
+
+    slot_demand: dict[tuple[dt.date, int], int] = {}
+    for d in dates:
+        bh = business[d]
+        if not bh:
+            continue
+        need = {t: default_count for t in range(bh[0], bh[1], step)}
+        for layer in (
+            dm.get("default"),
+            d_by_wd.get(d.weekday()),
+            d_by_hol if d in holidays else None,
+            d_by_date.get(d),
+        ):
+            for j, item in enumerate(layer or []):
+                f = _parse_hhmm(_norm_time(_require(item, "from", f"hourly.demand[{j}].from")))
+                t = _parse_hhmm(_norm_time(_require(item, "to", f"hourly.demand[{j}].to")))
+                if t <= f:
+                    t += 24 * 60
+                n = int(item.get("count", 1))
+                for slot in need:
+                    if f <= slot < t:
+                        need[slot] = n
+        for slot, n in need.items():
+            slot_demand[d, slot] = n
+
+    return shifts, {
+        "hourly": True,
+        "slot_minutes": step,
+        "business_hours": business,
+        "slot_demand": slot_demand,
+        "day_codes": day_codes,
+    }
+
+
+def _fmt(m: int) -> str:
+    """勤務コード用の短い時刻表記（10:00 → 10、10:30 → 10:30）。"""
+    h, mm = divmod(m, 60)
+    return f"{h}" if mm == 0 else f"{h}:{mm:02d}"
+
+
+def _hhmm(m: int) -> str:
+    h, mm = divmod(m, 60)
+    return f"{h:02d}:{mm:02d}"
 
 
 def _parse_demand(

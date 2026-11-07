@@ -13,7 +13,8 @@ from .solver import Result
 
 def _date_label(p: Problem, d) -> str:
     mark = "祝" if d in p.holidays else WEEKDAY_LABELS[d.weekday()]
-    return f"{d.month}/{d.day}({mark})"
+    closed = p.hourly and not p.business_hours.get(d)
+    return f"{d.month}/{d.day}({mark})" + ("休" if closed else "")
 
 
 def to_rows(p: Problem, r: Result) -> list[list[str]]:
@@ -30,6 +31,19 @@ def to_rows(p: Problem, r: Result) -> list[list[str]]:
         rows.append(line)
 
     rows.append([])
+    if p.hourly:
+        all_slots = sorted({t for d in p.dates for t in p.slots_of(d)})
+        for t in all_slots:
+            line = [f"{_hm(t)}-{_hm(t + p.slot_minutes)}（人数/必要）"]
+            for d in p.dates:
+                if t not in p.slots_of(d):
+                    line.append("")
+                    continue
+                n = _count_at(p, r, d, t)
+                need = p.slot_demand.get((d, t), 0)
+                line.append(f"{n}/{need}" + (" 不足" if n < need else ""))
+            rows.append(line)
+        return rows
     for sh in p.shifts:
         line = [f"{sh.name}（人数/必要）"]
         for d in p.dates:
@@ -38,6 +52,21 @@ def to_rows(p: Problem, r: Result) -> list[list[str]]:
             line.append(f"{n}/{need}" + (" 不足" if n < need else ""))
         rows.append(line)
     return rows
+
+
+def _hm(m: int) -> str:
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def _count_at(p: Problem, r: Result, d, t: int) -> int:
+    n = 0
+    for st in p.staff:
+        c = r.assignments.get((st.name, d))
+        if c:
+            sh = p.shift_by_code(c)
+            if sh.start_min <= t < sh.end_min:
+                n += 1
+    return n
 
 
 def write_csv(p: Problem, r: Result, path: str | Path) -> None:

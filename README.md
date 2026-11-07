@@ -1,7 +1,12 @@
 # kumishift（くみシフト）
 
 日本の現場向けの、**シフト表を自動で作るオープンソースツール**です。
-スタッフ・勤務の種類・必要人数・希望休を設定ファイルに書くと、ルールを守ったシフト表を作り、Excel で開ける CSV に書き出します。
+スタッフ・必要人数・希望休を設定ファイルに書くと、ルールを守ったシフト表を作り、Excel で開ける CSV や、ブラウザで見られる画面イメージ（HTML）に書き出します。
+
+組み方は2通りあります。
+
+- **勤務パターンモード**: 早番・遅番・夜勤など、決まった勤務に割り当てる（介護・クリニック・工場など）
+- **時間帯モード**: 営業時間と「何時から何時まで何人必要か」を書くと、勤務の時間（例: 10-15、17-22）も自動で決める（飲食・小売・カフェなど）
 
 計算には Google の最適化ライブラリ [OR-Tools](https://github.com/google/or-tools)（CP-SAT）を使っています。業種は問わず、早番・遅番・夜勤など勤務の種類は自由に決められます。
 
@@ -38,7 +43,15 @@
 **入出力**
 
 - 入力: YAML または JSON
-- 出力: CSV（BOM 付き UTF-8 なので Excel でそのまま開けます）、JSON（ほかのシステムとの連携用）
+- 出力: CSV（BOM 付き UTF-8 なので Excel でそのまま開けます）、画面イメージ（HTML）、JSON（ほかのシステムとの連携用）
+
+**画面イメージ（HTML）**
+
+`--html shift.html` を付けると、ブラウザで開くだけで見られるシフト表を1ファイルで書き出します。印刷もできます。
+
+- 月間: スタッフ × 日付の一覧（勤務の時間帯で色分け、土日祝・定休日を表示）
+- 日別: 1日の勤務をバーで表示し、時間ごとの「人数/必要人数」と不足を表示
+- スタッフ: 出勤日数・勤務時間・土日祝の出勤日数
 
 ## インストール
 
@@ -53,12 +66,18 @@ pip install -e .
 ## 使い方
 
 ```bash
-kumishift solve examples/basic.yaml -o shift.csv
+# 勤務パターンモード
+kumishift solve examples/basic.yaml -o shift.csv --html shift.html
+
+# 時間帯モード（営業時間あり）
+kumishift solve examples/hourly.yaml -o shift.csv --html shift.html --title "1月前半シフト"
 ```
 
 | オプション | 内容 |
 | --- | --- |
 | `-o, --output` | CSV の出力先 |
+| `--html` | 画面イメージ（HTML）の出力先 |
+| `--title` | 画面イメージのタイトル |
 | `--json` | JSON の出力先 |
 | `--time-limit` | 計算の制限時間（秒） |
 | `-q, --quiet` | 画面にシフト表を表示しない |
@@ -120,6 +139,53 @@ requests:
 | `max_hours_per_week` | 週（月曜〜日曜）の勤務時間の上限 |
 | `fair` | `false` にすると出勤日数の平等化の対象から外します（短時間パートなど） |
 
+## 時間帯モード（営業時間から組む）
+
+`shifts` の代わりに `hourly` を書きます。サンプルは [examples/hourly.yaml](examples/hourly.yaml) です。
+
+```yaml
+hourly:
+  step_minutes: 60      # 時間の区切り（15 / 30 / 60 分）
+  min_hours: 4          # 1回の勤務の最短時間
+  max_hours: 8          # 1回の勤務の最長時間
+
+  business_hours:       # 営業時間。default → 曜日 → 祝日 → 日付指定 の順に上書き
+    default: { open: "10:00", close: "21:00" }
+    weekdays:
+      土: { open: "09:00", close: "22:00" }
+      水: 定休日
+    dates:
+      2027-01-11: { open: "09:00", close: "20:00" }
+
+  default_count: 1      # 下で指定しない時間の必要人数
+  demand:               # 時間ごとの必要人数（from 〜 to の前まで）
+    default:
+      - { from: "11:00", to: "14:00", count: 3 }
+      - { from: "17:00", to: "20:00", count: 2 }
+    weekdays:
+      土:
+        - { from: "11:00", to: "15:00", count: 4 }
+```
+
+- 営業時間は `close` が `open` より早ければ日またぎ（例: 18:00〜02:00）として扱います。
+- 勤務はすべて営業時間の中に収まるように組みます。
+
+**スタッフに追加できる項目**
+
+| 項目 | 内容 |
+| --- | --- |
+| `available_from` / `available_to` | 入れる時間帯（例: 学生は `available_from: "17:00"`） |
+| `min_hours_per_day` / `max_hours_per_day` | 1日の勤務時間の下限・上限 |
+
+**時間を指定した NG**
+
+```yaml
+requests:
+  - { name: 佐藤, date: 2027-01-14, type: NG, from: "17:00", to: "21:00" }  # 夜だけ不可
+```
+
+`weights.hours_fairness` で、合計勤務時間の偏りをどれだけ嫌うかを調整できます。
+
 ## Python から使う
 
 ```python
@@ -139,6 +205,7 @@ print(to_dict(problem, result))
 ## 注意
 
 - 週の勤務時間は、期間内の月曜〜日曜で区切って数えます。期間の前の月の勤務は含みません。
+- 時間帯モードは組み合わせが多いので、スタッフや期間が大きいときは計算に時間がかかります。`--time-limit` を延ばすか、`step_minutes` を 60 にしてください。
 - 労働基準法などの法令に適合することを保証するものではありません。作成したシフトは、必ず担当者が確認してから使ってください。
 
 ## 今後の予定
@@ -146,6 +213,7 @@ print(to_dict(problem, result))
 - Excel / CSV からの入力
 - Web 画面と REST API
 - 休憩時間の自動計算
+- 開店前の準備・閉店後の片付けの時間
 - 業種別のテンプレート（飲食・介護・クリニック・小売など）
 
 要望や不具合は Issue でお知らせください。プルリクエストも歓迎します。

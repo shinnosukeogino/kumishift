@@ -7,6 +7,7 @@ import sys
 
 from . import __version__
 from .model import ConfigError, load_problem
+from .html import write_html
 from .output import format_text, write_csv, write_json
 from .solver import solve
 
@@ -20,6 +21,8 @@ def main(argv: list[str] | None = None) -> int:
     sp.add_argument("config", help="設定ファイル（.yaml / .yml / .json）")
     sp.add_argument("-o", "--output", help="CSV の出力先（Excel で開けます）")
     sp.add_argument("--json", help="JSON の出力先（ほかのシステムと連携するとき）")
+    sp.add_argument("--html", help="画面イメージ（HTML）の出力先。ブラウザで開けます")
+    sp.add_argument("--title", default="シフト表", help="HTML のタイトル")
     sp.add_argument("--time-limit", type=float, help="計算の制限時間（秒）。設定ファイルより優先")
     sp.add_argument("-q", "--quiet", action="store_true", help="画面にシフト表を表示しない")
 
@@ -45,6 +48,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         write_csv(problem, result, args.output)
         print(f"CSV を書き出しました: {args.output}")
+    if args.html:
+        write_html(problem, result, args.html, title=args.title)
+        print(f"画面イメージ（HTML）を書き出しました: {args.html}")
     if args.json:
         write_json(problem, result, args.json)
         print(f"JSON を書き出しました: {args.json}")

@@ -1,0 +1,63 @@
+# 時間帯モードのサンプル（カフェ・飲食店をイメージ）
+# 営業時間と「何時から何時まで何人必要か」を書くと、
+# 勤務の時間（例: 10-15, 17-22）を自動で決めて割り当てます。
+# 実行: kumishift solve examples/hourly.yaml -o shift.csv --html shift.html
+
+period:
+  start: 2027-01-04
+  end: 2027-01-17
+
+holidays:
+  - 2027-01-11   # 成人の日
+
+hourly:
+  step_minutes: 60      # 時間の区切り（15 / 30 / 60 分）
+  min_hours: 4          # 1回の勤務の最短時間
+  max_hours: 8          # 1回の勤務の最長時間
+
+  # 営業時間。default → 曜日 → 祝日 → 日付指定 の順に上書き
+  # 「定休日」と書くとその日は休業
+  business_hours:
+    default: { open: "10:00", close: "21:00" }
+    weekdays:
+      土: { open: "09:00", close: "22:00" }
+      日: { open: "09:00", close: "20:00" }
+      水: 定休日
+    dates:
+      2027-01-11: { open: "09:00", close: "20:00" }
+
+  default_count: 1      # 下で指定しない時間の必要人数
+
+  # 時間ごとの必要人数（from 〜 to の前まで）
+  demand:
+    default:
+      - { from: "11:00", to: "14:00", count: 3 }   # ランチ
+      - { from: "17:00", to: "20:00", count: 2 }   # ディナー
+    weekdays:
+      土:
+        - { from: "11:00", to: "15:00", count: 4 }
+        - { from: "17:00", to: "21:00", count: 3 }
+      日:
+        - { from: "11:00", to: "15:00", count: 4 }
+        - { from: "17:00", to: "19:00", count: 2 }
+
+staff:
+  - { name: 田中, max_hours_per_week: 40, max_days: 11 }
+  - { name: 佐藤, max_hours_per_week: 40, max_days: 11 }
+  - { name: 鈴木, max_hours_per_week: 32 }
+  # 学生アルバイト: 平日は夕方から
+  - { name: 高橋, available_from: "17:00", weekdays: [月, 火, 木, 金], fair: false }
+  - { name: 伊藤, available_from: "16:00", max_hours_per_day: 5, fair: false }
+  # 主婦パート: 昼だけ・短時間
+  - { name: 渡辺, available_from: "10:00", available_to: "15:00", max_hours_per_week: 20, fair: false }
+  - { name: 山本, available_to: "16:00", max_hours_per_day: 5, fair: false }
+  # 土日だけ
+  - { name: 中村, weekdays: [土, 日], fair: false }
+
+requests:
+  - { name: 田中, date: 2027-01-08, type: 休み }
+  - { name: 佐藤, date: 2027-01-14, type: NG, from: "17:00", to: "21:00" }  # 夜だけ不可
+
+rules:
+  max_consecutive: 5
+  time_limit_seconds: 15

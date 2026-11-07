@@ -63,8 +63,9 @@ def solve(problem: Problem) -> Result:
     codes = [s.code for s in p.shifts]
     w = p.weights
 
-    ng = {(r.name, r.date, r.shift) for r in p.requests if r.kind == "ng"}
+    ng = {(r.name, r.date, r.shift) for r in p.requests if r.kind == "ng" and r.time_from is None}
     off = {(r.name, r.date) for r in p.requests if r.kind == "off"}
+    ng_time = [r for r in p.requests if r.kind == "ng" and r.time_from is not None]
 
     # x[name, date, code] = 1 ならその日その勤務に入る
     x: dict[tuple[str, dt.date, str], cp_model.IntVar] = {}
@@ -79,6 +80,14 @@ def solve(problem: Problem) -> Result:
             for c in s.shifts:
                 if (s.name, d, c) in ng:
                     continue
+                if p.hourly and c not in p.day_codes.get(d, ()):
+                    continue  # 定休日・営業時間外
+                sh = p.shift_by_code(c)
+                if any(
+                    r.name == s.name and r.date == d and r.time_from < sh.end_min and sh.start_min < r.time_to
+                    for r in ng_time
+                ):
+                    continue  # NG の時間帯にかかる
                 x[s.name, d, c] = m.NewBoolVar(f"x_{s.name}_{d}_{c}")
 
     def shifts_of(name: str, d: dt.date) -> list[cp_model.IntVar]:
@@ -96,7 +105,21 @@ def solve(problem: Problem) -> Result:
 
     # ---- 必要人数
     shortage_vars = {}
+    x_by_date: dict[dt.date, list[tuple[int, int, cp_model.IntVar]]] = {}
+    for (n, d, c), v in x.items():
+        sh = p.shift_by_code(c)
+        x_by_date.setdefault(d, []).append((sh.start_min, sh.end_min, v))
     for d in dates:
+        if p.hourly:
+            for t in p.slots_of(d):
+                need = p.slot_demand.get((d, t), 0)
+                covering = [v for a, b, v in x_by_date.get(d, []) if a <= t < b]
+                short = m.NewIntVar(0, max(need, 0), f"short_{d}_{t}")
+                over = m.NewIntVar(0, len(p.staff), f"over_{d}_{t}")
+                m.Add(sum(covering) + short - over == need)
+                shortage_vars[d, t] = short
+                penalties.append(w.shortage * short + w.over * over)
+            continue
         for c in codes:
             need = p.demand.get((d, c), 0)
             assigned = sum(x[s.name, d, c] for s in p.staff if (s.name, d, c) in x)
@@ -177,6 +200,22 @@ def solve(problem: Problem) -> Result:
             m.AddMinEquality(lo, [vars_[n] for n in fair])
             penalties.append(weight * (hi - lo))
 
+    if p.hourly and len(fair) >= 2:
+        unit = p.slot_minutes
+        total_units = {
+            s.name: sum(
+                x[s.name, d, c] * (p.shift_by_code(c).minutes // unit)
+                for d in dates for c in codes if (s.name, d, c) in x
+            )
+            for s in p.staff if s.fair
+        }
+        ub = len(dates) * 24 * 60 // unit
+        hi = m.NewIntVar(0, ub, "hi_hours")
+        lo = m.NewIntVar(0, ub, "lo_hours")
+        m.AddMaxEquality(hi, list(total_units.values()))
+        m.AddMinEquality(lo, list(total_units.values()))
+        penalties.append(w.hours_fairness * (hi - lo))
+
     m.Minimize(sum(penalties))
 
     solver = cp_model.CpSolver()
@@ -199,8 +238,13 @@ def solve(problem: Problem) -> Result:
     shortages = []
     for (d, c), v in shortage_vars.items():
         if solver.Value(v) > 0:
-            need = p.demand[(d, c)]
-            shortages.append(Shortage(d, c, need, need - solver.Value(v)))
+            if p.hourly:
+                need = p.slot_demand[(d, c)]
+                label = f"{c // 60:02d}:{c % 60:02d}-{(c + p.slot_minutes) // 60:02d}:{(c + p.slot_minutes) % 60:02d}"
+                shortages.append(Shortage(d, label, need, need - solver.Value(v)))
+            else:
+                need = p.demand[(d, c)]
+                shortages.append(Shortage(d, c, need, need - solver.Value(v)))
 
     summaries = []
     for s in p.staff:

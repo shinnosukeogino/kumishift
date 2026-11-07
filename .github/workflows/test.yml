@@ -18,4 +18,5 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
       - run: pytest -q
-      - run: kumishift solve examples/basic.yaml -o shift.csv --quiet
+      - run: kumishift solve examples/basic.yaml -o shift.csv --html shift.html --quiet
+      - run: kumishift solve examples/hourly.yaml -o shift.csv --html shift.html --quiet
