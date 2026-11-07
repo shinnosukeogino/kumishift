@@ -10,11 +10,26 @@ import { cn } from "@/lib/utils";
 
 import { assigned, countAt } from "./helpers";
 
-export function DayView({ data, index, onIndex }: { data: ViewData; index: number; onIndex: (i: number) => void }) {
+export function DayView({
+  data,
+  index,
+  edited,
+  onIndex,
+  onEdit,
+}: {
+  data: ViewData;
+  index: number;
+  edited: Set<string>;
+  onIndex: (i: number) => void;
+  onEdit: (name: string, date: string) => void;
+}) {
   const day = data.days[index];
   const shortDates = new Set(data.shortages.map((s) => s.date));
-  const lo = day.open != null ? Math.floor(day.open / 60) * 60 : 9 * 60;
-  const hi = day.close != null ? Math.ceil(day.close / 60) * 60 : 22 * 60;
+  // 表示する範囲: 営業時間（手で営業時間の外に入れた勤務があれば広げる）
+  const todays = data.staff.map((s) => assigned(data, s.name, day.date)).filter(Boolean).map((c) => data.shifts[c!]);
+  const lo = Math.floor(Math.min(day.open ?? 9 * 60, ...todays.map((s) => s.start)) / 60) * 60;
+  const hi = Math.ceil(Math.max(day.close ?? 22 * 60, ...todays.map((s) => s.end)) / 60) * 60;
+  const breaks = day.breaks ?? [];
   const pct = (m: number) => `${((m - lo) / (hi - lo)) * 100}%`;
   const hours = Array.from({ length: (hi - lo) / 60 + 1 }, (_, k) => lo + k * 60);
   const working = data.staff.filter((s) => assigned(data, s.name, day.date));
@@ -50,11 +65,16 @@ export function DayView({ data, index, onIndex }: { data: ViewData; index: numbe
           <ChevronRight />
         </Button>
         <span className="text-muted-foreground text-sm">
-          {day.closed ? "定休日" : day.open != null && day.close != null ? `営業 ${hm(day.open)}〜${hm(day.close)}・${working.length}人出勤` : ""}
+          {day.closed
+            ? "定休日"
+            : day.open != null && day.close != null
+              ? `営業 ${hm(day.open)}〜${hm(day.close)}${breaks.map(([f, t]) => `（中休み ${hm(f)}〜${hm(t)}）`).join("")}・${working.length}人出勤`
+              : ""}
         </span>
+        <span className="text-muted-foreground ml-auto text-xs">名前の行を押すと、その人の勤務を直せます</span>
       </div>
 
-      {day.closed ? (
+      {day.closed && todays.length === 0 ? (
         <div className="text-muted-foreground rounded-lg border border-dashed py-16 text-center">この日はお休みです</div>
       ) : (
         <div className="overflow-x-auto">
@@ -77,24 +97,45 @@ export function DayView({ data, index, onIndex }: { data: ViewData; index: numbe
             {data.staff.map((s) => {
               const c = assigned(data, s.name, day.date);
               const sh = c ? data.shifts[c] : null;
+              const isEdited = edited.has(`${s.name}|${day.date}`);
               return (
-                <div key={s.name} className="grid min-h-10 grid-cols-[6rem_1fr_4.5rem] items-center border-b">
+                <button
+                  type="button"
+                  key={s.name}
+                  onClick={() => onEdit(s.name, day.date)}
+                  aria-label={`${s.name} ${sh ? `${hm(sh.start)}〜${hm(sh.end)}` : "休み"}（押すと直せます）`}
+                  className="hover:bg-muted/60 focus-visible:ring-ring/50 grid min-h-10 w-full grid-cols-[6rem_1fr_4.5rem] items-center border-b text-left outline-none focus-visible:ring-[3px]"
+                >
                   <div className="truncate text-sm font-semibold">{s.name}</div>
                   <div className="relative h-10">
                     {hours.map((t) => (
                       <div key={t} className="bg-border absolute top-0 bottom-0 w-px" style={{ left: pct(t) }} />
                     ))}
+                    {breaks.map(([f, t]) => (
+                      <div
+                        key={f}
+                        className="absolute top-0 bottom-0 bg-[repeating-linear-gradient(45deg,var(--muted),var(--muted)_4px,transparent_4px,transparent_8px)]"
+                        style={{ left: pct(f), width: `calc(${pct(t)} - ${pct(f)})` }}
+                      />
+                    ))}
                     {sh && (
                       <div
-                        className={cn("absolute top-2 flex h-6 items-center overflow-hidden rounded-md px-2 text-xs font-semibold whitespace-nowrap shadow-sm", TONE_CLASS[shiftTone(sh.start)])}
+                        className={cn(
+                          "absolute top-2 flex h-6 items-center overflow-hidden rounded-md px-2 text-xs font-semibold whitespace-nowrap shadow-sm",
+                          TONE_CLASS[shiftTone(sh.start)],
+                          isEdited && "ring-foreground ring-2 ring-offset-1",
+                        )}
                         style={{ left: pct(sh.start), width: `calc(${pct(sh.end)} - ${pct(sh.start)})` }}
                       >
                         {hm(sh.start)}〜{hm(sh.end)}
+                        {sh.break ? <span className="ml-1.5 font-normal opacity-90">休憩{sh.break}分</span> : null}
                       </div>
                     )}
                   </div>
-                  <div className="text-muted-foreground text-right text-xs">{sh ? `${(sh.end - sh.start) / 60}時間` : "休み"}</div>
-                </div>
+                  <div className="text-muted-foreground text-right text-xs">
+                    {sh ? `${(sh.end - sh.start - (sh.break ?? 0)) / 60}時間` : isEdited ? "休み（直した）" : "休み"}
+                  </div>
+                </button>
               );
             })}
             <div className="grid grid-cols-[6rem_1fr_4.5rem] items-center pt-2">

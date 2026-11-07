@@ -7,6 +7,7 @@
   - 希望休（rules.hope_off_is_hard が true のとき）
   - 期間内の最大出勤日数 / 最大連勤日数 / 週の最大勤務時間
   - 禁止する並び（例: 遅番の翌日に早番）
+  - 固定（手で直した勤務・休み）。スタッフの条件や希望より優先する
 
 できるだけ守るルール（ソフト制約。weights で重み付け）:
   - 必要人数を満たす（足りないと大きなペナルティ）
@@ -50,6 +51,7 @@ class Result:
     summaries: list[StaffSummary] = field(default_factory=list)
     unmet_requests: list[str] = field(default_factory=list)
     objective: float | None = None
+    has_fixed: bool = False
 
     @property
     def ok(self) -> bool:
@@ -66,11 +68,19 @@ def solve(problem: Problem) -> Result:
     ng = {(r.name, r.date, r.shift) for r in p.requests if r.kind == "ng" and r.time_from is None}
     off = {(r.name, r.date) for r in p.requests if r.kind == "off"}
     ng_time = [r for r in p.requests if r.kind == "ng" and r.time_from is not None]
+    fixed = {(r.name, r.date): r.shift for r in p.requests if r.kind == "fixed"}
+    fixed.update({(r.name, r.date): None for r in p.requests if r.kind == "fixed_off"})
 
     # x[name, date, code] = 1 ならその日その勤務に入る
     x: dict[tuple[str, dt.date, str], cp_model.IntVar] = {}
     for s in p.staff:
         for d in dates:
+            if (s.name, d) in fixed:
+                code = fixed[s.name, d]
+                if code is not None:
+                    x[s.name, d, code] = m.NewBoolVar(f"x_{s.name}_{d}_{code}")
+                    m.Add(x[s.name, d, code] == 1)
+                continue
             if d.weekday() not in s.weekdays:
                 continue
             if p.rules.hope_off_is_hard and (s.name, d) in off:
@@ -162,7 +172,7 @@ def solve(problem: Problem) -> Result:
             for week in _weeks(dates):
                 m.Add(
                     sum(
-                        x[s.name, d, c] * p.shift_by_code(c).minutes
+                        x[s.name, d, c] * p.work_minutes(c)
                         for d in week
                         for c in codes
                         if (s.name, d, c) in x
@@ -207,7 +217,7 @@ def solve(problem: Problem) -> Result:
         unit = p.slot_minutes
         total_units = {
             s.name: sum(
-                x[s.name, d, c] * (p.shift_by_code(c).minutes // unit)
+                x[s.name, d, c] * (p.work_minutes(c) // unit)
                 for d in dates for c in codes if (s.name, d, c) in x
             )
             for s in p.staff if s.fair
@@ -232,7 +242,7 @@ def solve(problem: Problem) -> Result:
         cp_model.INFEASIBLE: "解なし",
     }.get(code, "時間切れ")
     if status not in ("最適", "実行可能"):
-        return Result(status=status, assignments={})
+        return Result(status=status, assignments={}, has_fixed=bool(fixed))
 
     assignments = {
         (n, d): c for (n, d, c), v in x.items() if solver.Value(v)
@@ -256,7 +266,7 @@ def solve(problem: Problem) -> Result:
             StaffSummary(
                 name=s.name,
                 days=len(mine),
-                minutes=sum(p.shift_by_code(c).minutes for _, c in mine),
+                minutes=sum(p.work_minutes(c) for _, c in mine),
                 weekend_days=sum(1 for d, _ in mine if p.is_weekend(d)),
             )
         )

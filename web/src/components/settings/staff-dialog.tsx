@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { TimeSelect } from "@/components/app/time-select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -94,7 +95,7 @@ export function StaffDialog({
               onOpenChange(false);
             })}
           >
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid items-start gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="name"
@@ -154,9 +155,9 @@ export function StaffDialog({
               )}
             />
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormItem>
-                <FormLabel>入れる時間帯</FormLabel>
+            <div className="grid items-start gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>入れる時間帯</Label>
                 <div className="flex items-start gap-2">
                   <FormField
                     control={form.control}
@@ -184,9 +185,9 @@ export function StaffDialog({
                     )}
                   />
                 </div>
-                <FormDescription>例: 学生は「17:00〜閉店まで」</FormDescription>
-              </FormItem>
-              <div className="grid grid-cols-2 gap-2">
+                <p className="text-muted-foreground text-xs">例: 学生は「17:00〜閉店まで」</p>
+              </div>
+              <div className="grid grid-cols-2 items-start gap-2">
                 {num("minHoursPerDay", "1日の最短", "時間")}
                 {num("maxHoursPerDay", "1日の最長", "時間")}
               </div>
@@ -194,7 +195,7 @@ export function StaffDialog({
 
             <Separator />
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 items-start gap-4 sm:grid-cols-4">
               {num("minDays", "月の最低出勤", "日")}
               {num("maxDays", "月の最大出勤", "日")}
               {num("maxHoursPerWeek", "週の上限", "時間")}
@@ -207,8 +208,12 @@ export function StaffDialog({
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between gap-4 rounded-lg border p-4">
                   <div className="space-y-1">
-                    <FormLabel>出勤日数・時間を平等にする対象</FormLabel>
-                    <FormDescription>社員やフルタイムはオン、短時間のアルバイトはオフがおすすめです。</FormDescription>
+                    <FormLabel>出勤日数・時間をほかの人とそろえる</FormLabel>
+                    <FormDescription className="leading-relaxed">
+                      オンの人どうしで、出勤日数・勤務時間・土日祝の回数が同じくらいになるように組みます。
+                      オフにすると、そろえる計算から外れ、人が足りないところに必要なぶんだけ入ります（上限の範囲内）。
+                      社員・フルタイムはオン、短時間のアルバイトや扶養内のパートはオフがおすすめです。
+                    </FormDescription>
                   </div>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />

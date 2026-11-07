@@ -44,7 +44,10 @@ export function StaffList() {
     <Card>
       <CardHeader>
         <CardTitle>スタッフ（{staff.length}人）</CardTitle>
-        <CardDescription>ふだんの条件（入れる曜日・時間帯・上限など）を決めます。並び順はシフト表の並び順になります。</CardDescription>
+        <CardDescription>
+          ふだんの条件（入れる曜日・時間帯・上限など）を決めます。並び順はシフト表の並び順になります。
+          「日数そろえない」の人は、ほかの人と出勤日数・時間をそろえる計算に入らず、必要なところに必要なぶんだけ入ります。
+        </CardDescription>
         <CardAction>
           <Button onClick={() => setEditing(emptyStaff())}>
             <Plus />
@@ -69,7 +72,11 @@ export function StaffList() {
                 <div className="min-w-32">
                   <div className="flex items-center gap-2 font-semibold">
                     {s.name}
-                    {!s.fair && <Badge variant="secondary">平等化の対象外</Badge>}
+                    {!s.fair && (
+                      <Badge variant="secondary" title="ほかの人と出勤日数・時間をそろえる計算に入れません。必要なところに必要なぶんだけ入ります。">
+                        日数そろえない
+                      </Badge>
+                    )}
                   </div>
                   {s.memo && <div className="text-muted-foreground text-xs">{s.memo}</div>}
                 </div>

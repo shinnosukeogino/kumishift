@@ -1,4 +1,4 @@
-import { toMinutes, WEEKDAYS, type BusinessHours, type Demand } from "./schema";
+import { breakRange, toMinutes, WEEKDAYS, type BusinessHours, type Demand } from "./schema";
 
 /** 設定画面のプレビュー用に、ある曜日の時間ごとの必要人数を計算する（エンジンと同じ上書き順） */
 export function previewDemand(bh: BusinessHours, demand: Demand, weekday: number, holiday = false) {
@@ -11,8 +11,12 @@ export function previewDemand(bh: BusinessHours, demand: Demand, weekday: number
   if (close <= open) close += 1440;
   const step = bh.stepMinutes;
 
+  const closed = day.breakFrom && day.breakTo ? breakRange(day.open, day.breakFrom, day.breakTo) : null;
   const need = new Map<number, number>();
-  for (let t = open; t < close; t += step) need.set(t, demand.defaultCount);
+  for (let t = open; t < close; t += step) {
+    if (closed && closed[0] <= t && t < closed[1]) continue; // 中休み
+    need.set(t, demand.defaultCount);
+  }
 
   const group = weekday < 5 ? "平日" : "土日祝";
   const layers = [

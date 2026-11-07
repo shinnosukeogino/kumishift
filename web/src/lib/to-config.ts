@@ -1,5 +1,14 @@
 import { datesOfMonth } from "./dates";
-import { WEEKDAYS, type BusinessHours, type Demand, type ShiftRequest, type SpecialDays, type Staff, type WorkRules } from "./schema";
+import {
+  WEEKDAYS,
+  type BusinessHours,
+  type Demand,
+  type ShiftFix,
+  type ShiftRequest,
+  type SpecialDays,
+  type Staff,
+  type WorkRules,
+} from "./schema";
 
 type Input = {
   month: string;
@@ -9,6 +18,8 @@ type Input = {
   specialDays: SpecialDays;
   staff: Staff[];
   requests: ShiftRequest[];
+  /** 手で直した勤務（作り直しても固定する） */
+  fixes?: ShiftFix[];
 };
 
 /** 画面のデータを、エンジン（POST /api/solve）の設定 JSON に変換する */
@@ -19,7 +30,9 @@ export function toEngineConfig(v: Input) {
   // ---- 営業時間
   const hoursOf = (i: number) => {
     const d = v.businessHours.days[i];
-    return d.closed ? "定休日" : { open: d.open, close: d.close };
+    if (d.closed) return "定休日";
+    const breaks = d.breakFrom && d.breakTo ? [{ from: d.breakFrom, to: d.breakTo }] : [];
+    return { open: d.open, close: d.close, breaks };
   };
   const firstOpen = v.businessHours.days.findIndex((d) => !d.closed);
   const weekdayHours: Record<string, unknown> = {};
@@ -66,9 +79,11 @@ export function toEngineConfig(v: Input) {
     return o;
   });
 
-  // ---- 希望
-  const requests = v.requests
-    .filter((r) => inMonth(r.date) && names.has(r.staffId))
+  // ---- 希望（手で直した勤務がある日は、そちらを優先する）
+  const fixed = (v.fixes ?? []).filter((f) => inMonth(f.date) && names.has(f.staffId));
+  const fixedKeys = new Set(fixed.map((f) => `${f.staffId}|${f.date}`));
+  const requests: Record<string, unknown>[] = v.requests
+    .filter((r) => inMonth(r.date) && names.has(r.staffId) && !fixedKeys.has(`${r.staffId}|${r.date}`))
     .map((r) => {
       const name = names.get(r.staffId)!;
       if (r.type === "off") return { name, date: r.date, type: "休み" };
@@ -76,6 +91,10 @@ export function toEngineConfig(v: Input) {
       if (r.type === "ng") return { name, date: r.date, type: "NG" };
       return { name, date: r.date, type: "NG", from: r.from, to: r.to };
     });
+  for (const f of fixed) {
+    const name = names.get(f.staffId)!;
+    requests.push(f.off ? { name, date: f.date, type: "固定休み" } : { name, date: f.date, type: "固定", from: f.from, to: f.to });
+  }
 
   return {
     period: { start: dates[0], end: dates[dates.length - 1] },
@@ -98,6 +117,7 @@ export function toEngineConfig(v: Input) {
       max_consecutive: v.workRules.maxConsecutive,
       hope_off_is_hard: v.workRules.hopeOffHard,
       time_limit_seconds: v.workRules.timeLimitSeconds,
+      breaks: v.workRules.breakRules.map((b) => ({ over_hours: b.overHours, minutes: b.minutes })),
     },
   };
 }

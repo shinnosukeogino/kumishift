@@ -10,7 +10,11 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { TimeSelect } from "@/components/app/time-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { businessHoursSchema, toMinutes, WEEKDAYS, type BusinessHours } from "@/lib/schema";
+import { Plus, X } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { breakRange, businessHoursSchema, openRange, WEEKDAYS, type BusinessHours } from "@/lib/schema";
+import { hm } from "@/lib/dates";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +30,9 @@ export function BusinessHoursForm() {
     <Card>
       <CardHeader>
         <CardTitle>営業時間</CardTitle>
-        <CardDescription>勤務は必ず営業時間の中で組みます。閉店が開店より早いときは日をまたぐ営業（例: 18:00〜02:00）になります。</CardDescription>
+        <CardDescription>
+          勤務は必ず営業時間の中で組みます。「中休み」はお昼のあとなどにお店を閉める時間で、その時間をまたぐ勤務は作りません（中休みの前か後に入ります）。閉店が開店より早いときは日をまたぐ営業（例: 18:00〜02:00）になります。
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -42,10 +48,30 @@ export function BusinessHoursForm() {
               {WEEKDAYS.map((w, i) => {
                 const closed = days?.[i]?.closed;
                 const d = days?.[i];
-                const hours =
-                  d && !d.closed && d.open && d.close
-                    ? ((toMinutes(d.close) - toMinutes(d.open) + 1440) % 1440 || 1440) / 60
-                    : null;
+                let hours: number | null = null;
+                if (d && !d.closed && d.open && d.close) {
+                  const [o, c] = openRange(d.open, d.close);
+                  hours = c - o;
+                  if (d.breakFrom && d.breakTo) {
+                    const [f, t] = breakRange(d.open, d.breakFrom, d.breakTo);
+                    hours -= t - f;
+                  }
+                  hours /= 60;
+                }
+                const hasBreak = !!(d?.breakFrom || d?.breakTo);
+                const addBreak = () => {
+                  // 営業時間のまん中あたりに2時間の中休みを入れる（あとで変更できる）
+                  const [o, c] = openRange(d.open, d.close);
+                  const mid = Math.floor((o + c) / 2 / step) * step;
+                  const from = Math.max(o + step, mid - 60 - ((mid - 60) % step));
+                  const to = Math.min(c - step, from + 120);
+                  form.setValue(`days.${i}.breakFrom`, hm(from), { shouldDirty: true });
+                  form.setValue(`days.${i}.breakTo`, hm(to), { shouldDirty: true, shouldValidate: true });
+                };
+                const removeBreak = () => {
+                  form.setValue(`days.${i}.breakFrom`, "", { shouldDirty: true });
+                  form.setValue(`days.${i}.breakTo`, "", { shouldDirty: true, shouldValidate: true });
+                };
                 return (
                   <div key={w} className={cn("grid grid-cols-[3rem_auto_1fr] items-start gap-4 px-4 py-3", closed && "bg-muted/50")}>
                     <span className={cn("pt-2 font-semibold", i === 5 && "text-blue-600", i === 6 && "text-red-600")}>{w}</span>
@@ -90,7 +116,45 @@ export function BusinessHoursForm() {
                             </FormItem>
                           )}
                         />
-                        {hours != null && <span className="text-muted-foreground pt-2 text-sm">{hours}時間</span>}
+                        {hasBreak ? (
+                          <div className="bg-muted/60 flex items-start gap-2 rounded-md py-0 pr-1 pl-3">
+                            <span className="text-muted-foreground pt-2 text-sm whitespace-nowrap">中休み</span>
+                            <FormField
+                              control={form.control}
+                              name={`days.${i}.breakFrom`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <TimeSelect step={step} aria-label={`${w}曜日の中休みの始まり`} value={field.value} onChange={field.onChange} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <span className="pt-2">〜</span>
+                            <FormField
+                              control={form.control}
+                              name={`days.${i}.breakTo`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <TimeSelect step={step} aria-label={`${w}曜日の中休みの終わり`} value={field.value} onChange={field.onChange} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <Button type="button" variant="ghost" size="icon" aria-label={`${w}曜日の中休みを消す`} onClick={removeBreak}>
+                              <X className="text-muted-foreground" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button type="button" variant="ghost" size="sm" className="text-muted-foreground mt-0.5" onClick={addBreak}>
+                            <Plus />
+                            中休み
+                          </Button>
+                        )}
+                        {hours != null && <span className="text-muted-foreground pt-2 text-sm whitespace-nowrap">営業 {hours}時間</span>}
                       </div>
                     )}
                   </div>
@@ -101,7 +165,7 @@ export function BusinessHoursForm() {
               <p className="text-destructive text-sm">{form.formState.errors.days?.message ?? form.formState.errors.days?.root?.message}</p>
             ) : null}
 
-            <div className="grid gap-6 sm:grid-cols-2">
+            <div className="grid items-start gap-6 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="holidayMode"

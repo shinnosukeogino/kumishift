@@ -6,7 +6,17 @@ import type { ViewData } from "@/lib/types";
 
 import { assigned } from "./helpers";
 
-export function MonthView({ data, onPickDay }: { data: ViewData; onPickDay: (i: number) => void }) {
+export function MonthView({
+  data,
+  edited,
+  onPickDay,
+  onEdit,
+}: {
+  data: ViewData;
+  edited: Set<string>;
+  onPickDay: (i: number) => void;
+  onEdit: (name: string, date: string) => void;
+}) {
   const shortByDate = new Map<string, number>();
   for (const s of data.shortages) shortByDate.set(s.date, (shortByDate.get(s.date) ?? 0) + 1);
 
@@ -19,7 +29,11 @@ export function MonthView({ data, onPickDay }: { data: ViewData; onPickDay: (i: 
             {TONE_LABEL[t]}
           </span>
         ))}
-        <span>日付を押すと、その日の時間帯が見られます</span>
+        <span className="flex items-center gap-1.5">
+          <i className="ring-foreground inline-block size-2.5 rounded-sm ring-2 ring-offset-1" />
+          手で直した勤務
+        </span>
+        <span>マスを押すと直せます。日付を押すと、その日の時間帯が見られます</span>
       </div>
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full border-separate border-spacing-0 text-xs">
@@ -60,13 +74,28 @@ export function MonthView({ data, onPickDay }: { data: ViewData; onPickDay: (i: 
                         d.closed && "bg-[repeating-linear-gradient(45deg,var(--muted),var(--muted)_4px,transparent_4px,transparent_8px)]",
                       )}
                     >
-                      {sh ? (
-                        <span className={cn("inline-block min-w-11 rounded px-1 py-1 text-[11px] font-semibold tabular-nums", TONE_CLASS[shiftTone(sh.start)])}>
-                          {c}
-                        </span>
-                      ) : d.closed ? (
-                        <span className="text-muted-foreground">休</span>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => onEdit(s.name, d.date)}
+                        aria-label={`${s.name} ${d.label} ${c ?? "休み"}（押すと直せます）`}
+                        className="hover:bg-accent focus-visible:ring-ring/50 grid min-h-8 w-full place-items-center rounded outline-none focus-visible:ring-[3px]"
+                      >
+                        {sh ? (
+                          <span
+                            className={cn(
+                              "inline-block min-w-11 rounded px-1 py-1 text-[11px] font-semibold tabular-nums",
+                              TONE_CLASS[shiftTone(sh.start)],
+                              edited.has(`${s.name}|${d.date}`) && "ring-foreground ring-2 ring-offset-1",
+                            )}
+                          >
+                            {c}
+                          </span>
+                        ) : d.closed ? (
+                          <span className="text-muted-foreground">休</span>
+                        ) : edited.has(`${s.name}|${d.date}`) ? (
+                          <span className="text-muted-foreground rounded border border-dashed px-1.5 text-[11px]">休み</span>
+                        ) : null}
+                      </button>
                     </td>
                   );
                 })}

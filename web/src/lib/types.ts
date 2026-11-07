@@ -8,10 +8,13 @@ export type ViewDay = {
   open: number | null;
   close: number | null;
   slots: { t: number; need: number }[];
+  /** 中休み [開始分, 終了分] */
+  breaks?: [number, number][];
   need: Record<string, number>;
 };
 
-export type ViewShift = { name: string; start: number; end: number };
+/** break: 休憩（分）。勤務時間から差し引く */
+export type ViewShift = { name: string; start: number; end: number; break?: number };
 
 export type ViewData = {
   version: string;
@@ -27,6 +30,7 @@ export type ViewData = {
   assign: Record<string, string>;
   shortages: { date: string; shift: string; need: number; assigned: number }[];
   warnings: string[];
+  breakRules?: { overMinutes: number; minutes: number }[];
 };
 
 export type SolveResult = {
@@ -34,5 +38,7 @@ export type SolveResult = {
   createdAt: string;
   /** 作成したときの条件（変わったら「作り直してください」を出す） */
   configKey: string;
+  /** 作成したときの手で直した内容（変わったら「作り直すと反映」を出す） */
+  fixesKey?: string;
   data: ViewData;
 };

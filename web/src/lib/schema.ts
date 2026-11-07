@@ -32,15 +32,49 @@ export const toMinutes = (t: string) => {
 
 // ---------------------------------------------------------------- 営業時間
 
+/** 開店〜閉店を分に直す（閉店が開店より早ければ日またぎ） */
+export function openRange(open: string, close: string): [number, number] {
+  const o = toMinutes(open);
+  let c = toMinutes(close);
+  if (c <= o) c += 1440;
+  return [o, c];
+}
+
+/** 中休みを分に直す（営業時間に合わせて日またぎを補正） */
+export function breakRange(open: string, from: string, to: string): [number, number] {
+  const o = toMinutes(open);
+  let f = toMinutes(from);
+  if (f < o) f += 1440;
+  let t = toMinutes(to);
+  if (t <= f) t += 1440;
+  return [f, t];
+}
+
 export const businessDaySchema = z
   .object({
     closed: z.boolean(),
     open: time,
     close: time,
+    /** 中休み（お店を閉める時間）。空欄 = なし */
+    breakFrom: optionalTime,
+    breakTo: optionalTime,
   })
-  .refine((d) => d.closed || d.open !== d.close, {
-    message: "開店と閉店が同じ時刻です",
-    path: ["close"],
+  .superRefine((d, ctx) => {
+    if (d.closed) return;
+    if (d.open === d.close) {
+      ctx.addIssue({ code: "custom", message: "開店と閉店が同じ時刻です", path: ["close"] });
+      return;
+    }
+    if (!d.breakFrom && !d.breakTo) return;
+    if (!d.breakFrom || !d.breakTo) {
+      ctx.addIssue({ code: "custom", message: "中休みの始まりと終わりを両方選んでください", path: ["breakTo"] });
+      return;
+    }
+    const [o, c] = openRange(d.open, d.close);
+    const [f, t] = breakRange(d.open, d.breakFrom, d.breakTo);
+    if (!(o < f && t < c)) {
+      ctx.addIssue({ code: "custom", message: "中休みは営業時間の中にしてください", path: ["breakTo"] });
+    }
   });
 
 export const businessHoursSchema = z
@@ -56,7 +90,13 @@ export const businessHoursSchema = z
     }
     v.days.forEach((d, i) => {
       if (d.closed) return;
-      for (const [key, t] of [["open", d.open], ["close", d.close]] as const) {
+      for (const [key, t] of [
+        ["open", d.open],
+        ["close", d.close],
+        ["breakFrom", d.breakFrom],
+        ["breakTo", d.breakTo],
+      ] as const) {
+        if (!t) continue;
         if (toMinutes(t) % v.stepMinutes !== 0) {
           ctx.addIssue({
             code: "custom",
@@ -72,6 +112,13 @@ export type BusinessHours = z.infer<typeof businessHoursSchema>;
 
 // ---------------------------------------------------------------- 勤務のルール
 
+export const breakRuleSchema = z.object({
+  overHours: z.number({ error: "数字で入力してください" }).min(1, "1時間以上にしてください").max(16),
+  minutes: z.number({ error: "数字で入力してください" }).int("整数で入力してください").min(0).max(180, "180分以下にしてください"),
+});
+
+export type BreakRule = z.infer<typeof breakRuleSchema>;
+
 export const workRulesSchema = z
   .object({
     minHours: z.number({ error: "数字で入力してください" }).min(1, "1時間以上にしてください").max(16),
@@ -79,6 +126,8 @@ export const workRulesSchema = z
     maxConsecutive: z.number({ error: "数字で入力してください" }).int().min(1, "1日以上にしてください").max(31),
     hopeOffHard: z.boolean(),
     timeLimitSeconds: z.number({ error: "数字で入力してください" }).min(1, "1秒以上にしてください").max(30, "30秒以下にしてください"),
+    /** 休憩: 勤務が overHours 時間を超えたら minutes 分。勤務時間（実働）から差し引く */
+    breakRules: z.array(breakRuleSchema).max(5),
   })
   .refine((v) => v.minHours <= v.maxHours, {
     message: "最短が最長より長くなっています",
@@ -189,3 +238,25 @@ export const profileSchema = z.object({
 });
 
 export type Profile = z.infer<typeof profileSchema>;
+
+// ---------------------------------------------------------------- 手で直した勤務
+
+export const shiftFixSchema = z
+  .object({
+    staffId: z.string(),
+    date: isoDate,
+    off: z.boolean(),
+    from: optionalTime,
+    to: optionalTime,
+  })
+  .superRefine((f, ctx) => {
+    if (f.off) return;
+    if (!f.from) ctx.addIssue({ code: "custom", message: "始まりを選んでください", path: ["from"] });
+    if (!f.to) ctx.addIssue({ code: "custom", message: "終わりを選んでください", path: ["to"] });
+    if (f.from && f.to && f.from === f.to) {
+      ctx.addIssue({ code: "custom", message: "始まりと終わりが同じです", path: ["to"] });
+    }
+  });
+
+/** 作成したシフトを手で直した内容。作り直すときも、この内容で固定する */
+export type ShiftFix = z.infer<typeof shiftFixSchema>;

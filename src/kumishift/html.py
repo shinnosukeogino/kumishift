@@ -36,6 +36,7 @@ def to_view_data(p: Problem, r: Result) -> dict:
                 "closed": p.hourly and not p.business_hours.get(d),
                 "open": open_,
                 "close": close,
+                "breaks": [list(b) for b in p.closed_ranges.get(d, [])],
                 "slots": slots,
                 "need": {s.code: p.demand.get((d, s.code), 0) for s in p.shifts}
                 if not p.hourly
@@ -43,7 +44,8 @@ def to_view_data(p: Problem, r: Result) -> dict:
             }
         )
     shifts = {
-        s.code: {"name": s.name, "start": s.start_min, "end": s.end_min} for s in p.shifts
+        s.code: {"name": s.name, "start": s.start_min, "end": s.end_min, "break": p.break_minutes(s.code)}
+        for s in p.shifts
     }
     summary = {s.name: s for s in r.summaries}
     staff = [
@@ -71,6 +73,7 @@ def to_view_data(p: Problem, r: Result) -> dict:
             for s in r.shortages
         ],
         "warnings": r.unmet_requests,
+        "breakRules": [{"overMinutes": o, "minutes": b} for o, b in p.rules.breaks],
     }
 
 

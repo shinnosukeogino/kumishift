@@ -10,6 +10,7 @@ import type {
   BusinessHours,
   Demand,
   Profile,
+  ShiftFix,
   ShiftRequest,
   SpecialDays,
   Staff,
@@ -19,13 +20,13 @@ import type { SolveResult } from "./types";
 
 // ---------------------------------------------------------------- 初期値（カフェのサンプル）
 
-const open = (o: string, c: string) => ({ closed: false, open: o, close: c });
+const open = (o: string, c: string) => ({ closed: false, open: o, close: c, breakFrom: "", breakTo: "" });
 
 export const DEFAULT_BUSINESS_HOURS: BusinessHours = {
   days: [
     open("10:00", "21:00"),
     open("10:00", "21:00"),
-    { closed: true, open: "10:00", close: "21:00" },
+    { closed: true, open: "10:00", close: "21:00", breakFrom: "", breakTo: "" },
     open("10:00", "21:00"),
     open("10:00", "21:00"),
     open("09:00", "22:00"),
@@ -41,6 +42,11 @@ export const DEFAULT_WORK_RULES: WorkRules = {
   maxConsecutive: 5,
   hopeOffHard: true,
   timeLimitSeconds: 15,
+  // 労働基準法: 6時間を超えたら45分以上、8時間を超えたら1時間以上
+  breakRules: [
+    { overHours: 6, minutes: 45 },
+    { overHours: 8, minutes: 60 },
+  ],
 };
 
 export const DEFAULT_DEMAND: Demand = {
@@ -91,6 +97,7 @@ type State = {
   specialDays: SpecialDays;
   staff: Staff[];
   requests: ShiftRequest[];
+  fixes: ShiftFix[]; // 作成したシフトを手で直した内容
   month: string;
   results: Record<string, SolveResult>; // 月ごとの作成結果
 
@@ -105,6 +112,9 @@ type State = {
   setRequest: (v: ShiftRequest) => void;
   removeRequest: (staffId: string, date: string) => void;
   clearRequests: (month: string) => void;
+  setFix: (v: ShiftFix) => void;
+  removeFix: (staffId: string, date: string) => void;
+  clearFixes: (month: string) => void;
   setMonth: (month: string) => void;
   setResult: (r: SolveResult) => void;
   resetAll: () => void;
@@ -118,6 +128,7 @@ const initial = () => ({
   specialDays: { holidays: JP_HOLIDAYS, closedDates: [] } as SpecialDays,
   staff: DEFAULT_STAFF,
   requests: [] as ShiftRequest[],
+  fixes: [] as ShiftFix[],
   month: nextMonth(),
   results: {} as Record<string, SolveResult>,
 });
@@ -141,6 +152,7 @@ export const useAppStore = create<State>()(
         set((s) => ({
           staff: s.staff.filter((x) => x.id !== id),
           requests: s.requests.filter((r) => r.staffId !== id),
+          fixes: s.fixes.filter((f) => f.staffId !== id),
         })),
       moveStaff: (id, diff) =>
         set((s) => {
@@ -158,11 +170,38 @@ export const useAppStore = create<State>()(
       removeRequest: (staffId, date) =>
         set((s) => ({ requests: s.requests.filter((r) => !(r.staffId === staffId && r.date === date)) })),
       clearRequests: (month) => set((s) => ({ requests: s.requests.filter((r) => !r.date.startsWith(month)) })),
+      setFix: (v) =>
+        set((s) => ({
+          fixes: [...s.fixes.filter((f) => !(f.staffId === v.staffId && f.date === v.date)), v],
+        })),
+      removeFix: (staffId, date) =>
+        set((s) => ({ fixes: s.fixes.filter((f) => !(f.staffId === staffId && f.date === date)) })),
+      clearFixes: (month) => set((s) => ({ fixes: s.fixes.filter((f) => !f.date.startsWith(month)) })),
       setMonth: (month) => set({ month }),
       setResult: (r) => set((s) => ({ results: { ...s.results, [r.month]: r } })),
       resetAll: () => set(initial()),
     }),
-    { name: "kumishift", version: 1 },
+    {
+      name: "kumishift",
+      version: 2,
+      // 古い版で保存したデータに、新しい項目（中休み・休憩・手で直した勤務）を足す
+      migrate: (persisted, version) => {
+        const s = (persisted ?? {}) as Partial<State>;
+        if (version < 2) {
+          if (s.businessHours) {
+            s.businessHours = {
+              ...s.businessHours,
+              days: s.businessHours.days.map((d) => ({ ...d, breakFrom: d.breakFrom ?? "", breakTo: d.breakTo ?? "" })),
+            };
+          }
+          if (s.workRules && !s.workRules.breakRules) {
+            s.workRules = { ...s.workRules, breakRules: DEFAULT_WORK_RULES.breakRules };
+          }
+          s.fixes = s.fixes ?? [];
+        }
+        return s as State;
+      },
+    },
   ),
 );
 

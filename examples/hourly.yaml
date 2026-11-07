@@ -20,7 +20,7 @@ hourly:
   business_hours:
     default: { open: "10:00", close: "21:00" }
     weekdays:
-      土: { open: "09:00", close: "22:00" }
+      土: { open: "09:00", close: "22:00", breaks: [{ from: "15:00", to: "17:00" }] }  # 15〜17時は中休み
       日: { open: "09:00", close: "20:00" }
       水: 定休日
     dates:
@@ -36,7 +36,7 @@ hourly:
     weekdays:
       土:
         - { from: "11:00", to: "15:00", count: 4 }
-        - { from: "17:00", to: "21:00", count: 3 }
+        - { from: "17:00", to: "22:00", count: 3 }
       日:
         - { from: "11:00", to: "15:00", count: 4 }
         - { from: "17:00", to: "19:00", count: 2 }
@@ -60,4 +60,7 @@ requests:
 
 rules:
   max_consecutive: 5
+  breaks:               # 休憩（勤務時間から差し引く）
+    - { over_hours: 6, minutes: 45 }
+    - { over_hours: 8, minutes: 60 }
   time_limit_seconds: 15

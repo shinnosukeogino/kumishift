@@ -47,8 +47,12 @@ def solve_endpoint(config: dict[str, Any]) -> dict[str, Any]:
     problem.rules.time_limit_seconds = min(problem.rules.time_limit_seconds, MAX_TIME_LIMIT)
     result = solve(problem)
     if not result.ok:
-        raise HTTPException(
-            status_code=422,
-            detail=f"シフトを作れませんでした（{result.status}）。条件をゆるめるか、制限時間を延ばしてください。",
-        )
+        if result.status == "解なし" and result.has_fixed:
+            detail = (
+                "手で直した勤務が、連勤・週の上限・月の最大出勤日数などのルールと合わないため、シフトを作れませんでした。"
+                "手で直した勤務を見直すか、ルールをゆるめてください。"
+            )
+        else:
+            detail = f"シフトを作れませんでした（{result.status}）。条件をゆるめるか、制限時間を延ばしてください。"
+        raise HTTPException(status_code=422, detail=detail)
     return to_view_data(problem, result)

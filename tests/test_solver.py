@@ -259,3 +259,84 @@ def test_want_day_without_shift():
                 requests=[{"name": "J", "date": "2027-01-07", "type": "希望"}])
     r = solve(parse_problem(data))
     assert ("J", dt.date(2027, 1, 7)) in r.assignments
+
+
+# ---------------------------------------------------------------- 休憩・中休み・固定
+
+
+def test_break_rules_reduce_work_hours():
+    data = hourly_base()
+    data["rules"]["breaks"] = [{"over_hours": 6, "minutes": 45}, {"over_hours": 8, "minutes": 60}]
+    p = parse_problem(data)
+    p.shifts.append(type(p.shifts[0])(code="t9", name="t9", start="10:00", end="19:00"))
+    assert p.break_minutes("10-14") == 0          # 4時間: 休憩なし
+    assert p.break_minutes("t9") == 60            # 9時間: 60分
+    p2 = parse_problem(data)
+    assert p2.work_minutes("10-17") == 7 * 60 - 45  # 7時間: 45分
+
+
+def test_weekly_limit_uses_work_minutes():
+    data = hourly_base()
+    data["hourly"]["min_hours"] = 8
+    data["rules"]["breaks"] = [{"over_hours": 6, "minutes": 60}]
+    for st in data["staff"]:
+        st["max_hours_per_week"] = 14  # 実働7時間 × 2日まで
+    p = parse_problem(data)
+    r = solve(p)
+    for st in ["A", "B", "C", "D", "E"]:
+        assert sum(1 for (n, _), _c in r.assignments.items() if n == st) <= 2
+
+
+def test_mid_day_closure():
+    data = hourly_base()
+    data["hourly"]["business_hours"]["default"] = {
+        "open": "10:00", "close": "21:00", "breaks": [{"from": "15:00", "to": "17:00"}]
+    }
+    data["hourly"]["demand"] = {"default": [{"from": "17:00", "to": "21:00", "count": 2}]}
+    p = parse_problem(data)
+    d = dt.date(2027, 1, 4)
+    assert 15 * 60 not in p.slots_of(d) and 16 * 60 not in p.slots_of(d)
+    assert (d, 15 * 60) not in p.slot_demand
+    r = solve(p)
+    assert r.ok and r.shortages == []
+    for (n, dd), c in r.assignments.items():
+        sh = p.shift_by_code(c)
+        if p.business_hours[dd] == (600, 1260):
+            assert sh.end_min <= 15 * 60 or sh.start_min >= 17 * 60
+
+
+def test_mid_day_closure_must_be_inside_hours():
+    data = hourly_base()
+    data["hourly"]["business_hours"]["default"] = {
+        "open": "10:00", "close": "20:00", "breaks": [{"from": "09:00", "to": "11:00"}]
+    }
+    with pytest.raises(ConfigError, match="中休み"):
+        parse_problem(data)
+
+
+def test_fixed_shift_overrides_conditions():
+    data = hourly_base(requests=[
+        # A は月曜しか入れない設定だが、水曜（定休日）以外の木曜に手で 10:30-14:00 を入れる
+        {"name": "A", "date": "2027-01-07", "type": "固定", "from": "10:00", "to": "13:00"},
+        {"name": "B", "date": "2027-01-04", "type": "固定休み"},
+    ])
+    data["staff"][0]["weekdays"] = ["月"]
+    data["hourly"]["min_hours"] = 4  # 3時間の勤務は自動では作られない
+    p = parse_problem(data)
+    r = solve(p)
+    assert r.assignments[("A", dt.date(2027, 1, 7))] == "10-13"
+    assert ("B", dt.date(2027, 1, 4)) not in r.assignments
+
+
+def test_fixed_conflict_is_reported():
+    from fastapi.testclient import TestClient
+    from kumishift.api import app
+
+    data = hourly_base(requests=[
+        {"name": "A", "date": f"2027-01-0{d}", "type": "固定", "from": "10:00", "to": "14:00"}
+        for d in (4, 5, 7, 8)
+    ])
+    data["staff"][0]["max_days"] = 2
+    res = TestClient(app).post("/api/solve", json=data)
+    assert res.status_code == 422
+    assert "手で直した勤務" in res.json()["detail"]
