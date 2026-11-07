@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ApiError, solveShift } from "@/lib/api";
 import { applyFixes } from "@/lib/apply-fixes";
 import { withCurrentStaff } from "@/lib/remap-staff";
@@ -20,6 +21,7 @@ import { toEngineConfig } from "@/lib/to-config";
 
 import { CalendarView } from "./calendar-view";
 import { DayView } from "./day-view";
+import { PrintSheet, type PrintKind } from "./print-sheet";
 import { ShiftEditDialog, type EditTarget } from "./shift-edit-dialog";
 import { MonthView } from "./month-view";
 import { StaffView } from "./staff-view";
@@ -39,6 +41,8 @@ function Board() {
   const [tab, setTab] = React.useState("month");
   const [editing, setEditing] = React.useState<EditTarget>(null);
   const [confirmReset, setConfirmReset] = React.useState(false);
+  const [printOpen, setPrintOpen] = React.useState(false);
+  const [printKind, setPrintKind] = React.useState<PrintKind>("calendar");
   const [dayIndex, setDayIndex] = React.useState(() =>
     result ? Math.max(0, result.data.days.findIndex((d) => !d.closed)) : 0,
   );
@@ -111,7 +115,8 @@ function Board() {
   const warnings = data?.warnings ?? [];
 
   return (
-    <div className="space-y-4">
+    <>
+    <div className="space-y-4 print:hidden">
       <Card className="no-print py-4">
         <CardContent className="flex flex-wrap items-center gap-3 px-4">
           <MonthSwitcher />
@@ -125,7 +130,7 @@ function Board() {
               </span>
             )}
             {data && (
-              <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Button variant="outline" size="sm" onClick={() => setPrintOpen(true)}>
                 <Printer />
                 印刷
               </Button>
@@ -281,5 +286,55 @@ function Board() {
         </DialogContent>
       </Dialog>
     </div>
+    {data && result && (
+      <PrintSheet kind={printKind} data={data} storeName={state.profile.storeName} month={month} createdAt={result.createdAt} />
+    )}
+    <Dialog open={printOpen} onOpenChange={setPrintOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>印刷</DialogTitle>
+          <DialogDescription>A4 横 1 枚に収まるように印刷します。印刷の画面で「横向き」になっているか確認してください。</DialogDescription>
+        </DialogHeader>
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          value={printKind}
+          onValueChange={(v) => v && setPrintKind(v as PrintKind)}
+          className="w-full"
+          aria-label="印刷するもの"
+        >
+          {[
+            ["calendar", "カレンダー", "お店に貼る・配る"],
+            ["month", "月間表", "全体を確認する"],
+          ].map(([v, label, hint]) => (
+            <ToggleGroupItem
+              key={v}
+              value={v}
+              aria-label={label}
+              className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-auto flex-1 flex-col gap-0.5 py-2"
+            >
+              <span className="font-semibold">{label}</span>
+              <span className="text-xs opacity-80">{hint}</span>
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setPrintOpen(false)}>
+            キャンセル
+          </Button>
+          <Button
+            onClick={() => {
+              setPrintOpen(false);
+              // ダイアログが閉じてから印刷の画面を開く
+              window.setTimeout(() => window.print(), 300);
+            }}
+          >
+            <Printer />
+            印刷する
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

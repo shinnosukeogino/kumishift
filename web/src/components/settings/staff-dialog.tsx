@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { NumberInput } from "@/components/app/number-input";
@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { StaffAvatar } from "@/components/app/staff-avatar";
+import { STAFF_ICONS } from "@/lib/staff-icons";
+import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { TimeSelect } from "@/components/app/time-select";
 import { Separator } from "@/components/ui/separator";
@@ -31,6 +34,7 @@ export const emptyStaff = (): Staff => ({
   maxConsecutive: null,
   fair: true,
   memo: "",
+  icon: "",
 });
 
 type NumKey = "minHoursPerDay" | "maxHoursPerDay" | "minDays" | "maxDays" | "maxHoursPerWeek" | "maxConsecutive";
@@ -59,6 +63,7 @@ export function StaffDialog({
     [allStaff],
   );
   const form = useForm<Staff>({ resolver: zodResolver(schema), defaultValues: initial });
+  const nameValue = useWatch({ control: form.control, name: "name" });
 
   React.useEffect(() => {
     if (open) form.reset(initial);
@@ -123,6 +128,37 @@ export function StaffDialog({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="icon"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>アイコン</FormLabel>
+                  <FormControl>
+                    <div role="radiogroup" aria-label="アイコン" className="flex flex-wrap gap-1.5">
+                      {[["", "名前の1文字目"] as const, ...Object.entries(STAFF_ICONS).map(([k, v]) => [k, v.label] as const)].map(([key, label]) => (
+                        <button
+                          key={key || "initial"}
+                          type="button"
+                          role="radio"
+                          aria-checked={field.value === key}
+                          aria-label={label}
+                          title={label}
+                          onClick={() => field.onChange(key)}
+                          className={cn(
+                            "focus-visible:ring-ring/50 rounded-full outline-none focus-visible:ring-[3px]",
+                            field.value === key && "ring-primary ring-2 ring-offset-2",
+                          )}
+                        >
+                          <StaffAvatar name={nameValue || "名"} icon={key} className="size-8 text-xs" />
+                        </button>
+                      ))}
+                    </div>
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

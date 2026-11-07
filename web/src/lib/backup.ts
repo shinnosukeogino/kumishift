@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   businessHoursSchema,
   demandSchema,
+  displaySchema,
   profileSchema,
   shiftFixSchema,
   shiftRequestSchema,
@@ -20,6 +21,7 @@ const KEYS = [
   "businessHours",
   "workRules",
   "demand",
+  "display",
   "specialDays",
   "staff",
   "requests",
@@ -34,6 +36,7 @@ const backupDataSchema = z
     businessHours: businessHoursSchema,
     workRules: workRulesSchema,
     demand: demandSchema,
+    display: displaySchema,
     specialDays: specialDaysSchema,
     staff: z.array(staffSchema),
     requests: z.array(shiftRequestSchema),

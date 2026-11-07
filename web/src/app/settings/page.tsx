@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarX, Clock, DatabaseBackup, ListChecks, Sun, Users } from "lucide-react";
+import { CalendarX, Clock, DatabaseBackup, ListChecks, Palette, Sun, Users } from "lucide-react";
 
 import { Hydrated } from "@/components/app/hydrated";
 import { PageHeader } from "@/components/app/page-header";
@@ -8,6 +8,7 @@ import { ProfileForm, WorkRulesForm } from "@/components/settings/basic-form";
 import { BackupPanel } from "@/components/settings/backup-panel";
 import { BusinessHoursForm } from "@/components/settings/business-hours-form";
 import { DemandForm } from "@/components/settings/demand-form";
+import { DisplayForm } from "@/components/settings/display-form";
 import { SpecialDaysForm } from "@/components/settings/special-days-form";
 import { StaffList } from "@/components/settings/staff-list";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,12 +25,14 @@ export default function SettingsPage() {
             <TabsTrigger value="demand"><ListChecks />必要人数</TabsTrigger>
             <TabsTrigger value="days"><CalendarX />祝日・休業日</TabsTrigger>
             <TabsTrigger value="rules"><Sun />基本・ルール</TabsTrigger>
+            <TabsTrigger value="display"><Palette />表示</TabsTrigger>
             <TabsTrigger value="backup"><DatabaseBackup />バックアップ</TabsTrigger>
           </TabsList>
           <TabsContent value="staff"><StaffList /></TabsContent>
           <TabsContent value="hours"><BusinessHoursForm /></TabsContent>
           <TabsContent value="demand"><DemandForm /></TabsContent>
           <TabsContent value="days"><SpecialDaysForm /></TabsContent>
+          <TabsContent value="display"><DisplayForm /></TabsContent>
           <TabsContent value="backup"><BackupPanel /></TabsContent>
           <TabsContent value="rules" className="space-y-6">
             <ProfileForm />

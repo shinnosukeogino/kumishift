@@ -2,7 +2,8 @@
 
 import { weekdayOf } from "@/lib/dates";
 import { WEEKDAYS } from "@/lib/schema";
-import { shiftTone, TONE_CLASS } from "@/lib/shift-color";
+import { StaffAvatar } from "@/components/app/staff-avatar";
+import { useBands, useStaffIcons } from "@/lib/bands";
 import type { ViewData } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,8 @@ export function CalendarView({
   onPickDay: (i: number) => void;
   onEdit: (name: string, date: string) => void;
 }) {
+  const { of } = useBands();
+  const iconOf = useStaffIcons();
   const shortByDate = new Map<string, number>();
   for (const s of data.shortages) shortByDate.set(s.date, (shortByDate.get(s.date) ?? 0) + 1);
 
@@ -99,9 +102,9 @@ export function CalendarView({
                         )}
                         aria-label={`${p.name} ${p.code}（押すと直せます）`}
                       >
-                        <i className={cn("size-2 shrink-0 rounded-full", TONE_CLASS[shiftTone(sh.start)])} />
+                        <StaffAvatar name={p.name} icon={iconOf(p.name)} className="size-4 text-[9px]" />
                         <span className="truncate font-medium">{p.name}</span>
-                        <span className="text-muted-foreground ml-auto tabular-nums">{p.code}</span>
+                        <span className={cn("ml-auto rounded px-1 leading-4 tabular-nums", of(sh.start).solid)}>{p.code}</span>
                       </button>
                     </li>
                   );

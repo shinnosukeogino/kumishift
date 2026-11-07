@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { PALETTE_IDS, type PaletteId } from "./palette";
+
 /** 曜日（月曜 = 0 … 日曜 = 6。エンジンと同じ並び） */
 export const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"] as const;
 
@@ -186,6 +188,8 @@ export const staffSchema = z
     maxConsecutive: optionalInt(1, 31, "最大連勤"),
     fair: z.boolean(),
     memo: z.string().max(100, "100文字以内にしてください"),
+    /** アイコン（lib/staff-icons.tsx のキー）。空 = 名前の1文字目 */
+    icon: z.string(),
   })
   .superRefine((s, ctx) => {
     if (s.availableFrom && s.availableTo && s.availableFrom >= s.availableTo) {
@@ -260,3 +264,29 @@ export const shiftFixSchema = z
 
 /** 作成したシフトを手で直した内容。作り直すときも、この内容で固定する */
 export type ShiftFix = z.infer<typeof shiftFixSchema>;
+
+// ---------------------------------------------------------------- 表示（時間帯の色）
+
+export const timeBandSchema = z.object({
+  /** この時刻以降に始まる勤務をこの色にする */
+  from: time,
+  label: z.string().trim().min(1, "名前を入力してください").max(10, "10文字以内にしてください"),
+  color: z.enum(PALETTE_IDS as [PaletteId, ...PaletteId[]]),
+});
+
+export const displaySchema = z.object({
+  bands: z
+    .array(timeBandSchema)
+    .min(1, "時間帯を1つ以上作ってください")
+    .max(6, "時間帯は6つまでです")
+    .superRefine((bands, ctx) => {
+      const seen = new Set<string>();
+      bands.forEach((b, i) => {
+        if (seen.has(b.from)) ctx.addIssue({ code: "custom", message: "同じ時刻の時間帯があります", path: [i, "from"] });
+        seen.add(b.from);
+      });
+    }),
+});
+
+export type TimeBand = z.infer<typeof timeBandSchema>;
+export type Display = z.infer<typeof displaySchema>;

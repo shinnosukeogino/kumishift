@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2, UserRound } from "lucide-react";
 
+import { StaffAvatar } from "@/components/app/staff-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +70,7 @@ export function StaffList() {
           <ul className="divide-y rounded-lg border">
             {staff.map((s, i) => (
               <li key={s.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <StaffAvatar name={s.name} icon={s.icon} className="size-9 text-sm" />
                 <div className="min-w-32">
                   <div className="flex items-center gap-2 font-semibold">
                     {s.name}

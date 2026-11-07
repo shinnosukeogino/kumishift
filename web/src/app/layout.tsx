@@ -16,7 +16,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Suspense>
           <Nav />
         </Suspense>
-        <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">{children}</main>
+        <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 print:max-w-none print:p-0">{children}</main>
       </body>
     </html>
   );

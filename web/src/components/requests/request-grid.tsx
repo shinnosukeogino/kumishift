@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Ban, CalendarHeart, CalendarOff, Clock, Eraser, Trash2 } from "lucide-react";
 
 import { MonthSwitcher } from "@/components/app/month-switcher";
+import { StaffAvatar } from "@/components/app/staff-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -150,7 +151,10 @@ export function RequestGrid() {
                 return (
                   <tr key={s.id} className="group">
                     <th className="bg-card group-hover:bg-muted sticky left-0 z-10 border-b px-3 py-1.5 text-left text-sm font-semibold whitespace-nowrap">
-                      {s.name}
+                      <span className="flex items-center gap-2">
+                        <StaffAvatar name={s.name} icon={s.icon} />
+                        {s.name}
+                      </span>
                     </th>
                     {days.map((d) => {
                       const r = byKey.get(`${s.id}|${d.date}`);

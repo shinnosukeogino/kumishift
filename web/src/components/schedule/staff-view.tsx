@@ -1,12 +1,20 @@
+"use client";
+
+import { StaffAvatar } from "@/components/app/staff-avatar";
+import { useStaffIcons } from "@/lib/bands";
 import type { ViewData } from "@/lib/types";
 
 export function StaffView({ data }: { data: ViewData }) {
   const max = Math.max(1, ...data.staff.map((s) => s.hours));
+  const iconOf = useStaffIcons();
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {data.staff.map((s) => (
         <div key={s.name} className="rounded-lg border p-4">
-          <div className="mb-2 font-semibold">{s.name}</div>
+          <div className="mb-2 flex items-center gap-2 font-semibold">
+            <StaffAvatar name={s.name} icon={iconOf(s.name)} className="size-7" />
+            {s.name}
+          </div>
           <div className="text-muted-foreground grid grid-cols-3 gap-2 text-xs">
             <div>
               <div className="text-foreground text-lg font-bold tabular-nums">{s.days}</div>出勤日

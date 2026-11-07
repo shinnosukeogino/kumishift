@@ -9,6 +9,7 @@ import { JP_HOLIDAYS } from "./jp-holidays";
 import type {
   BusinessHours,
   Demand,
+  Display,
   Profile,
   ShiftFix,
   ShiftRequest,
@@ -49,6 +50,16 @@ export const DEFAULT_WORK_RULES: WorkRules = {
   ],
 };
 
+/** 時間帯の色（勤務の始まる時刻で決める） */
+export const DEFAULT_DISPLAY: Display = {
+  bands: [
+    { from: "05:00", label: "朝", color: "blue" },
+    { from: "11:00", label: "昼", color: "emerald" },
+    { from: "15:00", label: "夕方", color: "amber" },
+    { from: "22:00", label: "夜", color: "violet" },
+  ],
+};
+
 export const DEFAULT_DEMAND: Demand = {
   defaultCount: 1,
   rows: [
@@ -73,24 +84,25 @@ const staff = (id: string, name: string, extra: Partial<Staff> = {}): Staff => (
   maxConsecutive: null,
   fair: true,
   memo: "",
+  icon: "",
   ...extra,
 });
 
 export const DEFAULT_STAFF: Staff[] = [
-  staff("s1", "田中", { maxHoursPerWeek: 40, maxDays: 22, memo: "社員" }),
-  staff("s2", "佐藤", { maxHoursPerWeek: 40, maxDays: 22, memo: "社員" }),
-  staff("s3", "鈴木", { maxHoursPerWeek: 32 }),
-  staff("s4", "高橋", { availableFrom: "17:00", weekdays: [0, 1, 3, 4], fair: false, memo: "学生" }),
-  staff("s5", "伊藤", { availableFrom: "16:00", maxHoursPerDay: 5, fair: false, memo: "学生" }),
-  staff("s6", "渡辺", { availableFrom: "10:00", availableTo: "15:00", maxHoursPerWeek: 20, fair: false, memo: "扶養内" }),
-  staff("s7", "山本", { availableTo: "16:00", maxHoursPerDay: 5, fair: false }),
-  staff("s8", "中村", { weekdays: [5, 6], fair: false, memo: "土日のみ" }),
+  staff("s1", "田中", { icon: "coffee", maxHoursPerWeek: 40, maxDays: 22, memo: "社員" }),
+  staff("s2", "佐藤", { icon: "star", maxHoursPerWeek: 40, maxDays: 22, memo: "社員" }),
+  staff("s3", "鈴木", { icon: "cat", maxHoursPerWeek: 32 }),
+  staff("s4", "高橋", { icon: "music", availableFrom: "17:00", weekdays: [0, 1, 3, 4], fair: false, memo: "学生" }),
+  staff("s5", "伊藤", { icon: "rocket", availableFrom: "16:00", maxHoursPerDay: 5, fair: false, memo: "学生" }),
+  staff("s6", "渡辺", { icon: "flower", availableFrom: "10:00", availableTo: "15:00", maxHoursPerWeek: 20, fair: false, memo: "扶養内" }),
+  staff("s7", "山本", { icon: "dog", availableTo: "16:00", maxHoursPerDay: 5, fair: false }),
+  staff("s8", "中村", { icon: "sun", weekdays: [5, 6], fair: false, memo: "土日のみ" }),
 ];
 
 // ---------------------------------------------------------------- ストア
 
 /** 保存データの版。項目を足したら上げて、migrateState に移行処理を書く */
-export const STORE_VERSION = 2;
+export const STORE_VERSION = 3;
 
 /** 古い版で保存したデータ（またはバックアップ）に、新しい項目を足す */
 export function migrateState(persisted: unknown, version: number): Partial<State> {
@@ -107,6 +119,10 @@ export function migrateState(persisted: unknown, version: number): Partial<State
     }
     s.fixes = s.fixes ?? [];
   }
+  if (version < 3) {
+    s.display = s.display ?? DEFAULT_DISPLAY;
+    if (s.staff) s.staff = s.staff.map((x) => ({ ...x, icon: x.icon ?? "" }));
+  }
   return s;
 }
 
@@ -115,6 +131,7 @@ export type State = {
   businessHours: BusinessHours;
   workRules: WorkRules;
   demand: Demand;
+  display: Display;
   specialDays: SpecialDays;
   staff: Staff[];
   requests: ShiftRequest[];
@@ -127,6 +144,7 @@ export type State = {
   setBusinessHours: (v: BusinessHours) => void;
   setWorkRules: (v: WorkRules) => void;
   setDemand: (v: Demand) => void;
+  setDisplay: (v: Display) => void;
   setSpecialDays: (v: SpecialDays) => void;
   upsertStaff: (v: Staff) => void;
   removeStaff: (id: string) => void;
@@ -149,6 +167,7 @@ const initial = () => ({
   businessHours: DEFAULT_BUSINESS_HOURS,
   workRules: DEFAULT_WORK_RULES,
   demand: DEFAULT_DEMAND,
+  display: DEFAULT_DISPLAY,
   specialDays: { holidays: JP_HOLIDAYS, closedDates: [] } as SpecialDays,
   staff: DEFAULT_STAFF,
   requests: [] as ShiftRequest[],
@@ -166,6 +185,7 @@ export const useAppStore = create<State>()(
       setBusinessHours: (businessHours) => set({ businessHours }),
       setWorkRules: (workRules) => set({ workRules }),
       setDemand: (demand) => set({ demand }),
+      setDisplay: (display) => set({ display }),
       setSpecialDays: (specialDays) => set({ specialDays }),
       upsertStaff: (v) =>
         set((s) => ({

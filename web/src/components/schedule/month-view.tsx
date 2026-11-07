@@ -1,7 +1,9 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { shiftTone, TONE_CLASS, TONE_LABEL } from "@/lib/shift-color";
+import { StaffAvatar } from "@/components/app/staff-avatar";
+import { useBands, useStaffIcons } from "@/lib/bands";
+import { toMinutes } from "@/lib/schema";
 import type { ViewData } from "@/lib/types";
 
 import { assigned } from "./helpers";
@@ -19,16 +21,13 @@ export function MonthView({
 }) {
   const shortByDate = new Map<string, number>();
   for (const s of data.shortages) shortByDate.set(s.date, (shortByDate.get(s.date) ?? 0) + 1);
+  const { bands, of } = useBands();
+  const iconOf = useStaffIcons();
 
   return (
     <div className="space-y-3">
       <div className="text-muted-foreground flex flex-wrap gap-4 text-xs">
-        {(["am", "mid", "pm"] as const).map((t) => (
-          <span key={t} className="flex items-center gap-1.5">
-            <i className={cn("inline-block size-2.5 rounded-sm", TONE_CLASS[t])} />
-            {TONE_LABEL[t]}
-          </span>
-        ))}
+        <BandLegend bands={bands} of={of} />
         <span className="flex items-center gap-1.5">
           <i className="ring-foreground inline-block size-2.5 rounded-sm ring-2 ring-offset-1" />
           手で直した勤務
@@ -61,7 +60,12 @@ export function MonthView({
           <tbody>
             {data.staff.map((s) => (
               <tr key={s.name}>
-                <th className="bg-card sticky left-0 z-10 border-b px-3 py-1.5 text-left text-sm whitespace-nowrap">{s.name}</th>
+                <th className="bg-card sticky left-0 z-10 border-b px-3 py-1.5 text-left text-sm whitespace-nowrap">
+                  <span className="flex items-center gap-2">
+                    <StaffAvatar name={s.name} icon={iconOf(s.name)} />
+                    {s.name}
+                  </span>
+                </th>
                 {data.days.map((d) => {
                   const c = assigned(data, s.name, d.date);
                   const sh = c ? data.shifts[c] : null;
@@ -84,7 +88,7 @@ export function MonthView({
                           <span
                             className={cn(
                               "inline-block min-w-11 rounded px-1 py-1 text-[11px] font-semibold tabular-nums",
-                              TONE_CLASS[shiftTone(sh.start)],
+                              of(sh.start).solid,
                               edited.has(`${s.name}|${d.date}`) && "ring-foreground ring-2 ring-offset-1",
                             )}
                           >
@@ -120,5 +124,19 @@ export function MonthView({
         </table>
       </div>
     </div>
+  );
+}
+
+/** 時間帯の凡例（設定 → 表示 で変更できる） */
+export function BandLegend({ bands, of }: ReturnType<typeof useBands>) {
+  return (
+    <>
+      {bands.map((b) => (
+        <span key={b.from} className="flex items-center gap-1.5">
+          <i className={cn("inline-block size-2.5 rounded-sm", of(toMinutes(b.from)).dot)} />
+          {b.label}（{b.from.replace(/^0/, "")}〜に始まる勤務）
+        </span>
+      ))}
+    </>
   );
 }

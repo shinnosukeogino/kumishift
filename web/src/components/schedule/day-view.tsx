@@ -4,7 +4,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { hm } from "@/lib/dates";
-import { shiftTone, TONE_CLASS } from "@/lib/shift-color";
+import { StaffAvatar } from "@/components/app/staff-avatar";
+import { useBands, useStaffIcons } from "@/lib/bands";
 import type { ViewData } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,8 @@ export function DayView({
   const lo = Math.floor(Math.min(day.open ?? 9 * 60, ...todays.map((s) => s.start)) / 60) * 60;
   const hi = Math.ceil(Math.max(day.close ?? 22 * 60, ...todays.map((s) => s.end)) / 60) * 60;
   const breaks = day.breaks ?? [];
+  const { of } = useBands();
+  const iconOf = useStaffIcons();
   const pct = (m: number) => `${((m - lo) / (hi - lo)) * 100}%`;
   const hours = Array.from({ length: (hi - lo) / 60 + 1 }, (_, k) => lo + k * 60);
   const working = data.staff.filter((s) => assigned(data, s.name, day.date));
@@ -106,7 +109,10 @@ export function DayView({
                   aria-label={`${s.name} ${sh ? `${hm(sh.start)}〜${hm(sh.end)}` : "休み"}（押すと直せます）`}
                   className="hover:bg-muted/60 focus-visible:ring-ring/50 grid min-h-10 w-full grid-cols-[6rem_1fr_4.5rem] items-center border-b text-left outline-none focus-visible:ring-[3px]"
                 >
-                  <div className="truncate text-sm font-semibold">{s.name}</div>
+                  <div className="flex items-center gap-1.5 truncate text-sm font-semibold">
+                    <StaffAvatar name={s.name} icon={iconOf(s.name)} className="size-5 text-[10px]" />
+                    {s.name}
+                  </div>
                   <div className="relative h-10">
                     {hours.map((t) => (
                       <div key={t} className="bg-border absolute top-0 bottom-0 w-px" style={{ left: pct(t) }} />
@@ -122,7 +128,7 @@ export function DayView({
                       <div
                         className={cn(
                           "absolute top-2 flex h-6 items-center overflow-hidden rounded-md px-2 text-xs font-semibold whitespace-nowrap shadow-sm",
-                          TONE_CLASS[shiftTone(sh.start)],
+                          of(sh.start).solid,
                           isEdited && "ring-foreground ring-2 ring-offset-1",
                         )}
                         style={{ left: pct(sh.start), width: `calc(${pct(sh.end)} - ${pct(sh.start)})` }}
