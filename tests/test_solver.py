@@ -252,3 +252,10 @@ def test_html_output(tmp_path, maker):
     html = out.read_text(encoding="utf-8")
     assert "<title>テスト&lt;&gt;</title>" in html
     assert '"assign"' in html
+
+
+def test_want_day_without_shift():
+    data = base(staff=[{"name": n, "max_days": 3} for n in ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]],
+                requests=[{"name": "J", "date": "2027-01-07", "type": "希望"}])
+    r = solve(parse_problem(data))
+    assert ("J", dt.date(2027, 1, 7)) in r.assignments

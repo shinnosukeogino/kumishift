@@ -179,7 +179,10 @@ def solve(problem: Problem) -> Result:
     # ---- 希望
     want_vars = []
     for r in p.requests:
-        if r.kind == "want":
+        if r.kind == "want" and r.shift is None:
+            # 勤務の指定なし = その日に出勤したい
+            penalties.append(w.preference * (1 - work[r.name, r.date]))
+        elif r.kind == "want":
             key = (r.name, r.date, r.shift)
             if key in x:
                 want_vars.append((r, x[key]))
@@ -261,7 +264,9 @@ def solve(problem: Problem) -> Result:
     unmet = []
     for r in p.requests:
         got = assignments.get((r.name, r.date))
-        if r.kind == "want" and got != r.shift:
+        if r.kind == "want" and r.shift is None and got is None:
+            unmet.append(f"{r.name} {r.date:%m/%d} の出勤希望に入れられませんでした")
+        elif r.kind == "want" and r.shift is not None and got != r.shift:
             unmet.append(f"{r.name} {r.date:%m/%d} {r.shift} の希望に入れられませんでした")
         if r.kind == "off" and got is not None:
             unmet.append(f"{r.name} {r.date:%m/%d} の希望休を守れませんでした")

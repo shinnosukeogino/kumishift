@@ -255,8 +255,6 @@ def parse_problem(data: dict[str, Any]) -> Problem:
         t_to = _parse_hhmm(_norm_time(r["to"])) if r.get("to") is not None else None
         if (t_from is None) != (t_to is None):
             raise ConfigError(f"requests[{i}]: from と to は両方指定してください。")
-        if kind in ("want",) and shift is None:
-            raise ConfigError(f"requests[{i}]: 「希望」には shift を指定してください。")
         requests.append(
             Request(name=name, date=d, kind=kind, shift=shift, time_from=t_from, time_to=t_to)
         )

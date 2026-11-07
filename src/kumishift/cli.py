@@ -26,7 +26,21 @@ def main(argv: list[str] | None = None) -> int:
     sp.add_argument("--time-limit", type=float, help="計算の制限時間（秒）。設定ファイルより優先")
     sp.add_argument("-q", "--quiet", action="store_true", help="画面にシフト表を表示しない")
 
+    sv = sub.add_parser("serve", help="画面用の API サーバーを起動する")
+    sv.add_argument("--host", default="127.0.0.1")
+    sv.add_argument("--port", type=int, default=8000)
+    sv.add_argument("--reload", action="store_true", help="コードの変更で自動再起動（開発用）")
+
     args = parser.parse_args(argv)
+
+    if args.command == "serve":
+        try:
+            import uvicorn
+        except ImportError:
+            print('API には追加のパッケージが必要です: pip install -e ".[api]"', file=sys.stderr)
+            return 2
+        uvicorn.run("kumishift.api:app", host=args.host, port=args.port, reload=args.reload)
+        return 0
 
     try:
         problem = load_problem(args.config)

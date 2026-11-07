@@ -19,7 +19,8 @@ classifiers = [
 dependencies = ["ortools>=9.8", "pyyaml>=6.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+api = ["fastapi>=0.110", "uvicorn>=0.27"]
+dev = ["pytest>=7", "fastapi>=0.110", "uvicorn>=0.27", "httpx>=0.27"]
 
 [project.scripts]
 kumishift = "kumishift.cli:main"
