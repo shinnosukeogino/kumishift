@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kumishift"
+version = "0.1.0"
+description = "日本の現場向けシフト自動作成ツール（OR-Tools 使用）"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Maestea LLC" }]
+keywords = ["shift", "scheduling", "シフト", "シフト表", "ortools"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Natural Language :: Japanese",
+  "Topic :: Office/Business :: Scheduling",
+]
+dependencies = ["ortools>=9.8", "pyyaml>=6.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+kumishift = "kumishift.cli:main"
+
+[project.urls]
+Homepage = "https://maestea.co.jp"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

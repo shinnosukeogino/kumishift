@@ -1,0 +1,74 @@
+# kumishift 設定ファイルのサンプル（1か月分・スタッフ8人・勤務3種類）
+# 実行: kumishift solve examples/basic.yaml -o shift.csv
+
+# シフトを作る期間
+period:
+  start: 2027-01-01
+  end: 2027-01-31
+
+# 祝日（土日と同じく「土日祝の出勤日数」の平等化の対象になります）
+holidays:
+  - 2027-01-01   # 元日
+  - 2027-01-11   # 成人の日
+
+# 勤務の種類。code はシフト表に表示される短い記号です
+shifts:
+  - { code: 早, name: 早番, start: "09:00", end: "15:00" }
+  - { code: 中, name: 中番, start: "12:00", end: "18:00" }
+  - { code: 遅, name: 遅番, start: "16:00", end: "22:00" }
+
+# スタッフ
+#   shifts:             入れる勤務（省略するとすべて）
+#   weekdays:           出勤できる曜日（省略するとすべて）
+#   min_days/max_days:  期間内の出勤日数の下限・上限
+#   max_consecutive:    最大連勤日数（省略すると rules.max_consecutive）
+#   max_hours_per_week: 週（月〜日）の勤務時間の上限
+#   fair: false         出勤日数の平等化の対象から外す（短時間パートなど）
+staff:
+  - { name: 田中, min_days: 18, max_days: 22, max_hours_per_week: 40 }
+  - { name: 佐藤, min_days: 18, max_days: 22, max_hours_per_week: 40 }
+  - { name: 鈴木, min_days: 16, max_days: 22, max_hours_per_week: 40 }
+  - { name: 高橋, shifts: [早, 中], max_days: 16, fair: false }
+  - { name: 伊藤, shifts: [遅], max_days: 14, fair: false }
+  - { name: 渡辺, min_days: 12, max_days: 18, max_consecutive: 4 }
+  - { name: 山本, weekdays: [金, 土, 日], fair: false }
+  - { name: 中村, shifts: [中, 遅], min_days: 12, max_days: 18 }
+
+# 必要人数。default → 曜日 → 祝日 → 日付指定 の順に上書きされます
+demand:
+  default:   { 早: 1, 中: 1, 遅: 1 }
+  weekdays:
+    土:      { 早: 2, 中: 1, 遅: 2 }
+    日:      { 早: 2, 中: 1, 遅: 2 }
+    祝:      { 早: 2, 中: 1, 遅: 2 }
+  dates:
+    2027-01-02: { 早: 2, 中: 2, 遅: 2 }   # 初売り
+
+# 希望
+#   休み: その日は休みたい（rules.hope_off_is_hard: true なら必ず守る）
+#   希望: その日はこの勤務に入りたい（できるだけ守る）
+#   NG:   その勤務には入れない（shift を省略するとその日は丸ごと不可）
+requests:
+  - { name: 田中, date: 2027-01-08, type: 休み }
+  - { name: 田中, date: 2027-01-09, type: 休み }
+  - { name: 佐藤, date: 2027-01-15, type: 休み }
+  - { name: 鈴木, date: 2027-01-20, type: 希望, shift: 早 }
+  - { name: 渡辺, date: 2027-01-23, type: NG, shift: 遅 }
+  - { name: 中村, date: 2027-01-30, type: NG }
+
+rules:
+  # 前日 → 翌日 の組み合わせで禁止するもの
+  forbidden_sequences:
+    - [遅, 早]          # 遅番の翌日に早番は入れない
+  max_consecutive: 5    # 全員共通の最大連勤日数
+  hope_off_is_hard: true
+  time_limit_seconds: 10
+
+# 重み（大きいほど優先）。わからなければ省略してOK
+weights:
+  shortage: 1000        # 人数不足
+  over: 10              # 入れすぎ
+  min_days: 100         # 最低出勤日数に届かない
+  preference: 5         # 希望の勤務に入れない
+  fairness: 20          # 出勤日数の偏り
+  weekend_fairness: 10  # 土日祝の出勤日数の偏り
