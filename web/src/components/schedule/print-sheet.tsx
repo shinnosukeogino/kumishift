@@ -24,7 +24,10 @@ export function PrintSheet({
   storeName,
   month,
   createdAt,
+  mode = "print",
 }: {
+  /** print: 印刷するときだけ表示 / image: 画像にするために、画面の外にそのまま表示 */
+  mode?: "print" | "image";
   kind: PrintKind;
   data: ViewData;
   storeName: string;
@@ -34,8 +37,8 @@ export function PrintSheet({
   const shortages = data.shortages.length;
   const { bands, of } = useBands();
   return (
-    <div className="hidden text-black print:block">
-      <style>{`@page { size: A4 landscape; margin: 8mm; }`}</style>
+    <div className={cn("text-black", mode === "print" ? "hidden print:block" : "w-[297mm] bg-white p-[8mm]")}>
+      {mode === "print" && <style>{`@page { size: A4 landscape; margin: 8mm; }`}</style>}
       <div className="flex h-[194mm] flex-col">
         <header className="mb-[2mm] flex items-end justify-between border-b border-black pb-[1.5mm]">
           <h1 className="text-[15pt] leading-none font-bold">
