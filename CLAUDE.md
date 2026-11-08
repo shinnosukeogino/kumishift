@@ -1,5 +1,7 @@
 # kumishift 開発メモ
 
+作業を始める前に [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)（いまの状態・次にやること・仕様の決めごと・作業のやり方）を読むこと。作業が終わったら、そのファイルの「いまの状態」「次にやること」も更新する。
+
 - 返答・コメント・ドキュメントは日本語で書く
 - 画面（web/）は Next.js + React + TypeScript
 - UI/UX は shadcn/ui（Tailwind CSS + Radix UI）を使う
