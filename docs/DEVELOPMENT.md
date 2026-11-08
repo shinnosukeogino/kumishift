@@ -83,6 +83,12 @@ cd web && npm run typecheck && npm run lint && npm run build
 - Node.js は Volta で `web/package.json` の版（22）を使う
 - パッケージを追加したときは、`start.bat` で再起動すれば入る
 
+### Mac で使うとき
+
+- `setup.command`（最初の 1 回）→ `start.command`（起動）。中身は `setup.bat` / `start.bat` と同じ流れ
+- Mac 標準の `python3` は 3.9 のことが多いので、`setup.command` は `python3.14`〜`python3.10` を探し、なければ Homebrew で `python@3.12` を入れる。Node.js も 22 未満なら Homebrew で入れる
+- `.bat` を直したときは `.command` も合わせて直す
+
 ### 作業環境の制限（Claude のクラウド環境で作業するとき）
 
 - `ui.shadcn.com` に接続できないことがある。そのときは GitHub の `shadcn-ui/ui` の `apps/v4/registry/new-york-v4/ui/` から部品を取り、`@/registry/new-york-v4/ui/` → `@/components/ui/`、`cn` の import を `@/lib/utils` に置き換える（CLI と同じ結果になる）
