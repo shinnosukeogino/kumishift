@@ -9,7 +9,7 @@
 
 | 部分 | 状態 |
 | --- | --- |
-| エンジン（`src/kumishift/`） | 勤務パターンモード・時間帯モード（営業時間・中休み）、休憩、固定（手で直した勤務）まで完成。テスト 37 件 |
+| エンジン（`src/kumishift/`） | 勤務パターンモード・時間帯モード（営業時間・中休み）、休憩、固定（手で直した勤務）まで完成。テスト 36 件 |
 | API（`src/kumishift/api.py`） | `POST /api/solve`、`GET /api/health` |
 | 画面（`web/`） | 設定・シフト入力・シフト表（月間・カレンダー・日別・集計）、編集、印刷、書き出し（PNG・ics・CSV）、バックアップまで完成 |
 | 公開 | https://github.com/shinnosukeogino/kumishift （Public、MIT、GitHub Actions でテスト・ビルド） |
